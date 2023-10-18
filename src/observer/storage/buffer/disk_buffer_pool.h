@@ -310,6 +310,7 @@ public:
   RC create_file(const char *file_name);
   RC open_file(const char *file_name, DiskBufferPool *&bp);
   RC close_file(const char *file_name);
+  RC delete_file(const char* file_name);
 
   RC flush_page(Frame &frame);
 

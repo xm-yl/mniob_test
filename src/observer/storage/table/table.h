@@ -53,7 +53,12 @@ public:
             const char *base_dir, 
             int attribute_count, 
             const AttrInfoSqlNode attributes[]);
-
+  /**
+   * 删除一个表
+   * @param name 表名
+   * @param base_dir 表数据存放的路径
+  */
+  RC drop(const char*meta_file,const char* name,const char* base_dir);
   /**
    * 打开一个表
    * @param meta_file 保存表元数据的文件完整路径
