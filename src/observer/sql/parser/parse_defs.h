@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 
 #include "sql/parser/value.h"
+#include "common/log/log.h"
 
 class Expression;
 
@@ -74,6 +75,11 @@ struct ConditionSqlNode
                                    ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
+
+  bool validate() {
+    LOG_DEBUG("conditions lvalue:%s rvalue:%s", left_value.attr_type(), right_value.attr_type());
+    return left_value.validate() && right_value.validate();
+  }
 };
 
 /**
@@ -92,6 +98,14 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  bool validate() {
+    for (size_t i = 0;i < conditions.size(); i++) {
+      if(conditions[i].validate() == false) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 /**
@@ -114,6 +128,14 @@ struct InsertSqlNode
 {
   std::string        relation_name;  ///< Relation to insert into
   std::vector<Value> values;         ///< 要插入的值
+  bool validate() {
+    for(size_t i = 0;i < values.size(); i++) {
+      if(values[i].validate() == false) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 /**
@@ -124,6 +146,14 @@ struct DeleteSqlNode
 {
   std::string                   relation_name;  ///< Relation to delete from
   std::vector<ConditionSqlNode> conditions;
+  bool validate() {
+    for (size_t i = 0;i < conditions.size(); i++) {
+      if(conditions[i].validate() == false) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 /**
@@ -136,6 +166,19 @@ struct UpdateSqlNode
   std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
   Value                         value;                 ///< 更新的值，仅支持一个字段
   std::vector<ConditionSqlNode> conditions;
+
+  bool validate() {
+    if (value.validate() == false) {
+      return false;
+    }
+
+    for (size_t i = 0;i < conditions.size(); i++) {
+      if(conditions[i].validate() == false) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 /**
@@ -225,6 +268,9 @@ struct SetVariableSqlNode
 {
   std::string name;
   Value       value;
+  bool validate() {
+    return value.validate();
+  }
 };
 
 class ParsedSqlNode;
