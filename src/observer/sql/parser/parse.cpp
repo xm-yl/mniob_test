@@ -42,8 +42,47 @@ void ParsedSqlResult::add_sql_node(std::unique_ptr<ParsedSqlNode> sql_node)
 
 int sql_parse(const char *st, ParsedSqlResult *sql_result);
 
+
 RC parse(const char *st, ParsedSqlResult *sql_result)
 {
   sql_parse(st, sql_result);
+  std::vector<std::unique_ptr<ParsedSqlNode>>& nodes = sql_result->sql_nodes();
+
+  for (auto it = nodes.begin(); it != nodes.end(); it++) {
+    switch ((*it)->flag)
+    {
+    case SCF_SELECT:
+      for (size_t i = 0;i < (*it)->selection.conditions.size(); i++) {
+        if((*it)->selection.validate() == false) {
+          return RC::SQL_SYNTAX;
+        }
+      } break;
+    case SCF_INSERT:{
+        if((*it)->insertion.validate() == false) {
+          return RC::SQL_SYNTAX;
+        }
+      } break;
+    case SCF_UPDATE: {
+        if((*it)->update.validate() == false) {
+          return RC::SQL_SYNTAX;
+        }
+      } break;
+
+    case SCF_DELETE: {
+        if((*it)->deletion.validate() == false) {
+          return RC::SQL_SYNTAX;
+        }
+      } break;
+    
+    case SCF_SET_VARIABLE: {
+        if((*it)->set_variable.validate() == false) {
+          return RC::SQL_SYNTAX;
+        }
+      } break;
+    default:
+      break;
+    }
+  }
+
   return RC::SUCCESS;
 }
