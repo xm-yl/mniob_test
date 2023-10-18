@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 
 #include "common/defs.h"
+#include "storage/common/meta_util.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "common/log/log.h"
@@ -48,6 +49,47 @@ Table::~Table()
   indexes_.clear();
 
   LOG_INFO("Table has been closed: %s", name());
+}
+RC Table::drop(const char *meta_file_path, 
+               const char *name, 
+               const char *base_dir){
+  RC rc = sync();
+  int fd = ::open(meta_file_path,O_RDONLY);
+  if(fd<0){
+    if(ENOENT == errno){
+      LOG_ERROR("Failed to delete table file,it doesn't exist. %s, ENOENT, %s",meta_file_path,strerror(errno));
+    }
+    LOG_ERROR("Delete table file failed. filename=%s,errmsg=%d:%s",meta_file_path,errno,strerror(errno));
+    return RC::IOERR_SEEK;
+  }
+  close(fd);
+  
+  //删除元数据文件
+  int result = ::remove(meta_file_path);
+  if(result<0){
+    LOG_ERROR("Failed to delete table file %s, %s",meta_file_path,strerror(errno));
+    return RC::IOERR_ACCESS;//这里的错误码到底该用什么？
+  }
+  LOG_INFO("successfully remove the meta file of table %s",name);
+  
+  //删除table_data
+  std::string data_file = table_data_file(base_dir,name);
+  BufferPoolManager &bpm = BufferPoolManager::instance();
+  rc = bpm.delete_file(data_file.c_str());
+  
+  //删除索引相关文件
+  const int index_num = table_meta_.index_num();
+  for (int i=0; i < index_num; i++){
+      ((BplusTreeIndex*)indexes_[i])->close();
+      const IndexMeta* index_meta = table_meta_.index(i);
+      std::string index_file = table_index_file(base_dir, name, index_meta->name());
+      if(unlink(index_file.c_str()) != 0) {
+            LOG_ERROR("Failed to remove index file=%s, errno=%d", index_file.c_str(), errno);
+            return RC::IOERR_ACCESS;
+      }
+  }
+
+  return rc;
 }
 
 RC Table::create(int32_t table_id, 

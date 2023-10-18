@@ -728,7 +728,6 @@ RC BufferPoolManager::close_file(const char *_file_name)
     }
     ASSERT(count == 1, "the buffer pool was not erased from fd buffer pools.");
   }
-
   DiskBufferPool *bp = iter->second;
   buffer_pools_.erase(iter);
   lock_.unlock();
@@ -736,7 +735,28 @@ RC BufferPoolManager::close_file(const char *_file_name)
   delete bp;
   return RC::SUCCESS;
 }
+RC BufferPoolManager::delete_file(const char* file_name){
+  std::string _file_name(file_name);
+  std::scoped_lock lock_guard(lock_);
+  auto buffer_pool_iter = buffer_pools_.find(_file_name);
+  auto buffer_pool_ptr = buffer_pool_iter->second;
+  RC rc;
+  if (buffer_pools_.find(_file_name) != buffer_pools_.end()) {
+    rc = buffer_pool_ptr->close_file();
+  }
+  if (rc!=RC::SUCCESS){
+    LOG_WARN("failed to close file");
+    return rc;
+  }
 
+  int result = ::remove(file_name);
+  if (result<0){
+    LOG_ERROR("Failed to remove file %s, due to %s",file_name, strerror(errno));
+    return  RC::IOERR_ACCESS;
+  }
+  return RC::SUCCESS;
+
+}
 RC BufferPoolManager::flush_page(Frame &frame)
 {
   int fd = frame.file_desc();
