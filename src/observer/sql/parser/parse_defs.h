@@ -77,7 +77,7 @@ struct ConditionSqlNode
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
 
   bool validate() {
-    LOG_DEBUG("conditions lvalue:%s rvalue:%s", left_value.attr_type(), right_value.attr_type());
+    LOG_DEBUG("conditions lvalue:%d rvalue:%d", left_value.attr_type(), right_value.attr_type());
     return left_value.validate() && right_value.validate();
   }
 };
