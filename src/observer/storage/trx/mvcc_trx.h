@@ -67,6 +67,10 @@ public:
   virtual ~MvccTrx();
 
   RC insert_record(Table *table, Record &record) override;
+  RC update_record(Table *table, Record &record, Value* value, std::string update_attribute) override{
+    return RC::UNIMPLENMENT;
+    
+  }
   RC delete_record(Table *table, Record &record) override;
 
   /**

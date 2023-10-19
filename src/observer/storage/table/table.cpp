@@ -477,6 +477,30 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   return rc;
 }
 
+RC Table::update_record(Record &record, Value* value, std::string update_attribute){
+  RC rc = RC::SUCCESS;
+  char * r = record.data();
+
+  AttrType value_type = value->attr_type();
+  const int sys_field_num = table_meta_.sys_field_num();
+  const int field_num = table_meta_.field_num() - sys_field_num;
+  int update_location = 0;
+  for(update_location; update_location<field_num;update_location++){
+    const FieldMeta *field_meta = table_meta_.field(update_location + sys_field_num);
+    AttrType field_type = field_meta->type();
+    const char * field_name = field_meta->name();
+    //field_name 和 type 都要一致 才算合法的update。
+    if(strcmp(field_name,update_attribute.c_str())==0 && field_type==value_type){
+        break;
+      }
+  }
+
+  memcpy(r + update_location*value->length(), value->data(), value->length());
+  rc = record_handler_->update_record(&record.rid(),record.data());
+  return rc;
+}
+
+
 RC Table::delete_record(const Record &record)
 {
   RC rc = RC::SUCCESS;
