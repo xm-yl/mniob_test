@@ -93,22 +93,26 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
   result = false;
   switch (comp_) {
     case EQUAL_TO: {
-      result = (0 == cmp_result);
+      result = (0 == left.compare(right));
     } break;
     case LESS_EQUAL: {
-      result = (cmp_result <= 0);
+      result = (left.compare(right) <= 0);
     } break;
     case NOT_EQUAL: {
-      result = (cmp_result != 0);
+      result = (left.compare(right) != 0);
     } break;
     case LESS_THAN: {
-      result = (cmp_result < 0);
+      result = (left.compare(right) < 0);
     } break;
     case GREAT_EQUAL: {
-      result = (cmp_result >= 0);
+      result = (left.compare(right) >= 0);
     } break;
     case GREAT_THAN: {
-      result = (cmp_result > 0);
+      result = (left.compare(right) > 0);
+    } break;
+    case LIKE_OP: {
+      //right must be template, left must be tuple cell
+      result = (left.like(right) == true);
     } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);

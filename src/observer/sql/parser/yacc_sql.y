@@ -649,7 +649,7 @@ comp_op:
     | LE { $$ = LESS_EQUAL; }
     | GE { $$ = GREAT_EQUAL; }
     | NE { $$ = NOT_EQUAL; }
-    | LIKE { $$ = LIKE; }
+    | LIKE { $$ = LIKE_OP; }
     ;
 
 load_data_stmt:
