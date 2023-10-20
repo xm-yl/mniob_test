@@ -485,14 +485,17 @@ RC Table::update_record(Record &record, Value* value, std::string update_attribu
   const int sys_field_num = table_meta_.sys_field_num();
   const int field_num = table_meta_.field_num() - sys_field_num;
   int update_location = 0;
-  for(update_location; update_location<field_num;update_location++){
-    const FieldMeta *field_meta = table_meta_.field(update_location + sys_field_num);
+  int update_field_length = 0;
+  for(int i = 0; i < field_num;i++){
+    const FieldMeta *field_meta = table_meta_.field(i + sys_field_num);
     AttrType field_type = field_meta->type();
     const char * field_name = field_meta->name();
     //field_name 和 type 都要一致 才算合法的update。
     if(strcmp(field_name,update_attribute.c_str())==0 && field_type==value_type){
+        update_field_length = field_meta->len();
         break;
       }
+    update_location += field_meta->len();
   }
   //delete index_entry
   for (Index *index : indexes_) {
@@ -506,10 +509,11 @@ RC Table::update_record(Record &record, Value* value, std::string update_attribu
   
   // TODO flexible length
   Record* old_record = new Record(record);
-  char *tmp = new char[4];
+  char *tmp = new char[update_field_length];
   memset(tmp, 0, sizeof(tmp));
-  memcpy(tmp, value->data(), min(4, value->length()));
-  memcpy(r + update_location*4, tmp, 4);
+  memcpy(tmp, value->data(), min(update_field_length, value->length()));
+  // LOG_DEBUG("field_length is %d,Update location is %d",update_field_length,update_location);
+  memcpy(r + update_location, tmp, update_field_length);
   delete []tmp;
 
   //insert index_entry
