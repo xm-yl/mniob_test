@@ -253,7 +253,7 @@ int Value::compare(const Value &other) const
 
 bool allStars(const char* str, int left, int right) {
     for (int i = left; i < right; ++i) {
-        if (str[i] != '*') {
+        if (str[i] != '%') {
             return false;
         }
     }
@@ -263,7 +263,7 @@ bool charMatch(char u, char v) { return u == v || v == '_'; };
 
 bool isMatch(const char* s, const char* p) {
     int len_s = strlen(s), len_p = strlen(p);
-    while (len_s && len_p && p[len_p - 1] != '*') {
+    while (len_s && len_p && p[len_p - 1] != '%') {
         if (charMatch(s[len_s - 1], p[len_p - 1])) {
             len_s--;
             len_p--;
@@ -278,7 +278,7 @@ bool isMatch(const char* s, const char* p) {
     int sIndex = 0, pIndex = 0;
     int sRecord = -1, pRecord = -1;
     while (sIndex < len_s && pIndex < len_p) {
-        if (p[pIndex] == '*') {
+        if (p[pIndex] == '%') {
             ++pIndex;
             sRecord = sIndex;
             pRecord = pIndex;
