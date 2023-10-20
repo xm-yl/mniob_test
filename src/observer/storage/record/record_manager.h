@@ -172,6 +172,7 @@ public:
    * @param data 要插入的数据行
    * @param rid  插入的位置
    */
+  RC update_record(const RID* rid, const char* data);
   RC recover_insert_record(const char *data, const RID &rid);
 
   /**
@@ -265,7 +266,8 @@ public:
    * @param rid 待删除记录的标识符
    */
   RC delete_record(const RID *rid);
-
+  
+  RC update_record(const RID *rid, const char* data);
   /**
    * @brief 插入一个新的记录到指定文件中，并返回该记录的标识符
    * 

@@ -225,12 +225,20 @@ RC RecordPageHandler::recover_insert_record(const char *data, const RID &rid)
   // 恢复数据
   char *record_data = get_record_data(rid.slot_num);
   memcpy(record_data, data, page_header_->record_real_size);
+  
 
   frame_->mark_dirty();
 
   return RC::SUCCESS;
 }
-
+RC RecordPageHandler::update_record(const RID* rid,const char* data){
+  ASSERT(readonly_ == false, "cannot delete record from page while the page is readonly");
+  SlotNum index = rid->slot_num;
+  char *record_data = get_record_data(index);
+  memcpy(record_data, data, page_header_->record_real_size);
+  frame_->mark_dirty();
+  return RC::SUCCESS;
+}
 RC RecordPageHandler::delete_record(const RID *rid)
 {
   ASSERT(readonly_ == false, "cannot delete record from page while the page is readonly");
@@ -422,7 +430,23 @@ RC RecordFileHandler::recover_insert_record(const char *data, int record_size, c
 
   return record_page_handler.recover_insert_record(data, rid);
 }
-
+RC RecordFileHandler::update_record(const RID *rid,const char* data){
+  RC rc = RC::SUCCESS;
+  RecordPageHandler page_handler;
+  if ((rc = page_handler.init(*disk_buffer_pool_, rid->page_num, false /*readonly*/)) != RC::SUCCESS) {
+    LOG_ERROR("Failed to init record page handler.page number=%d. rc=%s", rid->page_num, strrc(rc));
+    return rc;
+  }
+  rc = page_handler.update_record(rid,data);
+  page_handler.cleanup();
+  if (OB_SUCC(rc)) {
+    lock_.lock();
+    free_pages_.insert(rid->page_num);
+    LOG_TRACE("add free page %d to free page list", rid->page_num);
+    lock_.unlock();
+  }
+  return rc;
+}
 RC RecordFileHandler::delete_record(const RID *rid)
 {
   RC rc = RC::SUCCESS;

@@ -56,6 +56,10 @@ RC VacuousTrx::insert_record(Table *table, Record &record)
   return table->insert_record(record);
 }
 
+RC VacuousTrx::update_record(Table *table, Record &record, Value* value, std::string update_attribute){
+  return table->update_record(record,value,update_attribute);
+}
+
 RC VacuousTrx::delete_record(Table *table, Record &record)
 {
   return table->delete_record(record);
