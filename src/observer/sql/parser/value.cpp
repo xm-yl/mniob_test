@@ -303,6 +303,7 @@ int Value::like(const Value& v) const {
   }
 
   if (this->attr_type_ == v.attr_type_) {
+    //LOG_DEBUG("%s %s %d", *this->data(), *v.data(), isMatch(this->data(), v.data()));
     return isMatch(this->data(), v.data());
   }
   return -1;

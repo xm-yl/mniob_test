@@ -114,6 +114,9 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       //right must be template, left must be tuple cell
       result = (left.like(right) == true);
     } break;
+    case NOT_LIKE_OP: {
+      result = (left.like(right) == false);
+    } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);
       rc = RC::INTERNAL;
