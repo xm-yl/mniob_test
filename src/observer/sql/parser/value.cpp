@@ -235,7 +235,7 @@ int Value::compare(const Value &other) const
       } break;
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
-      }
+      } break;
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
       }
@@ -249,6 +249,64 @@ int Value::compare(const Value &other) const
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
+}
+
+bool allStars(const char* str, int left, int right) {
+    for (int i = left; i < right; ++i) {
+        if (str[i] != '%') {
+            return false;
+        }
+    }
+    return true;
+}
+bool charMatch(char u, char v) { return u == v || v == '_'; };
+
+bool isMatch(const char* s, const char* p) {
+    int len_s = strlen(s), len_p = strlen(p);
+    while (len_s && len_p && p[len_p - 1] != '%') {
+        if (charMatch(s[len_s - 1], p[len_p - 1])) {
+            len_s--;
+            len_p--;
+        } else {
+            return false;
+        }
+    }
+    if (len_p == 0) {
+        return len_s == 0;
+    }
+
+    int sIndex = 0, pIndex = 0;
+    int sRecord = -1, pRecord = -1;
+    while (sIndex < len_s && pIndex < len_p) {
+        if (p[pIndex] == '%') {
+            ++pIndex;
+            sRecord = sIndex;
+            pRecord = pIndex;
+        } else if (charMatch(s[sIndex], p[pIndex])) {
+            ++sIndex;
+            ++pIndex;
+        } else if (sRecord != -1 && sRecord + 1 < len_s) {
+            ++sRecord;
+            sIndex = sRecord;
+            pIndex = pRecord;
+        } else {
+            return false;
+        }
+    }
+    return allStars(p, pIndex, len_p);
+}
+
+int Value::like(const Value& v) const {
+  if (this->attr_type_ != CHARS) {
+    LOG_WARN("not supported");
+    return -1;
+  }
+
+  if (this->attr_type_ == v.attr_type_) {
+    //LOG_DEBUG("%s %s %d", *this->data(), *v.data(), isMatch(this->data(), v.data()));
+    return isMatch(this->data(), v.data());
+  }
+  return -1;
 }
 
 int Value::get_int() const

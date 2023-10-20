@@ -99,6 +99,7 @@ public:
   int get_date() const;
 
   bool validate() const;
+  int like(const Value &v) const;
 
 private:
   AttrType attr_type_ = UNDEFINED;

@@ -92,6 +92,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         DATA
         INFILE
         EXPLAIN
+        NOT
+        LIKE
         EQ
         LT
         GT
@@ -648,6 +650,8 @@ comp_op:
     | LE { $$ = LESS_EQUAL; }
     | GE { $$ = GREAT_EQUAL; }
     | NE { $$ = NOT_EQUAL; }
+    | NOT LIKE { $$ = NOT_LIKE_OP; }
+    | LIKE { $$ = LIKE_OP; }
     ;
 
 load_data_stmt:
