@@ -53,7 +53,12 @@ public:
             const char *base_dir, 
             int attribute_count, 
             const AttrInfoSqlNode attributes[]);
-
+  /**
+   * 删除一个表
+   * @param name 表名
+   * @param base_dir 表数据存放的路径
+  */
+  RC drop(const char*meta_file,const char* name,const char* base_dir);
   /**
    * 打开一个表
    * @param meta_file 保存表元数据的文件完整路径
@@ -76,6 +81,7 @@ public:
    * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
    */
   RC insert_record(Record &record);
+  RC update_record(Record &record, Value* value, std::string update_attribute);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);

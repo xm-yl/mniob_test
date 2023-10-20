@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <algorithm>
 
 #include "common/defs.h"
+#include "storage/common/meta_util.h"
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "common/log/log.h"
@@ -48,6 +49,47 @@ Table::~Table()
   indexes_.clear();
 
   LOG_INFO("Table has been closed: %s", name());
+}
+RC Table::drop(const char *meta_file_path, 
+               const char *name, 
+               const char *base_dir){
+  RC rc = sync();
+  int fd = ::open(meta_file_path,O_RDONLY);
+  if(fd<0){
+    if(ENOENT == errno){
+      LOG_ERROR("Failed to delete table file,it doesn't exist. %s, ENOENT, %s",meta_file_path,strerror(errno));
+    }
+    LOG_ERROR("Delete table file failed. filename=%s,errmsg=%d:%s",meta_file_path,errno,strerror(errno));
+    return RC::IOERR_SEEK;
+  }
+  close(fd);
+  
+  //删除元数据文件
+  int result = ::remove(meta_file_path);
+  if(result<0){
+    LOG_ERROR("Failed to delete table file %s, %s",meta_file_path,strerror(errno));
+    return RC::IOERR_ACCESS;//这里的错误码到底该用什么？
+  }
+  LOG_INFO("successfully remove the meta file of table %s",name);
+  
+  //删除table_data
+  std::string data_file = table_data_file(base_dir,name);
+  BufferPoolManager &bpm = BufferPoolManager::instance();
+  rc = bpm.delete_file(data_file.c_str());
+  
+  //删除索引相关文件
+  const int index_num = table_meta_.index_num();
+  for (int i=0; i < index_num; i++){
+      ((BplusTreeIndex*)indexes_[i])->close();
+      const IndexMeta* index_meta = table_meta_.index(i);
+      std::string index_file = table_index_file(base_dir, name, index_meta->name());
+      if(unlink(index_file.c_str()) != 0) {
+            LOG_ERROR("Failed to remove index file=%s, errno=%d", index_file.c_str(), errno);
+            return RC::IOERR_ACCESS;
+      }
+  }
+
+  return rc;
 }
 
 RC Table::create(int32_t table_id, 
@@ -434,6 +476,63 @@ RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_
   LOG_INFO("Successfully added a new index (%s) on the table (%s)", index_name, name());
   return rc;
 }
+
+RC Table::update_record(Record &record, Value* value, std::string update_attribute){
+  RC rc = RC::SUCCESS;
+  char * r = record.data();
+
+  AttrType value_type = value->attr_type();
+  const int sys_field_num = table_meta_.sys_field_num();
+  const int field_num = table_meta_.field_num() - sys_field_num;
+  int update_location = 0;
+  for(update_location; update_location<field_num;update_location++){
+    const FieldMeta *field_meta = table_meta_.field(update_location + sys_field_num);
+    AttrType field_type = field_meta->type();
+    const char * field_name = field_meta->name();
+    //field_name 和 type 都要一致 才算合法的update。
+    if(strcmp(field_name,update_attribute.c_str())==0 && field_type==value_type){
+        break;
+      }
+  }
+  //delete index_entry
+  for (Index *index : indexes_) {
+    rc = index->delete_entry(record.data(), &record.rid());
+    ASSERT(RC::SUCCESS == rc, 
+           "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+  }
+  
+  // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
+  
+  // TODO flexible length
+  Record* old_record = new Record(record);
+  char *tmp = new char[4];
+  memset(tmp, 0, sizeof(tmp));
+  memcpy(tmp, value->data(), min(4, value->length()));
+  memcpy(r + update_location*4, tmp, 4);
+  delete []tmp;
+
+  //insert index_entry
+  rc = insert_entry_of_indexes(record.data(), record.rid());
+  if (rc != RC::SUCCESS) { // 可能出现了键值重复
+    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*error_on_not_exists*/);
+    if (rc2 != RC::SUCCESS) {
+      LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
+                name(), rc2, strrc(rc2));
+    }
+    rc2 = insert_entry_of_indexes(old_record->data(),old_record->rid());
+    //rc2 = record_handler_->delete_record(&record.rid());
+    if (rc2 != RC::SUCCESS) {
+      LOG_PANIC("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
+                name(), rc2, strrc(rc2));
+    }
+    return rc;
+  }
+  // LOG_DEBUG("[Table:update_record] after-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d", *(r), *(r+4), *(r+8), *(r+12));
+  rc = record_handler_->update_record(&record.rid(),record.data());
+  return rc;
+}
+
 
 RC Table::delete_record(const Record &record)
 {
