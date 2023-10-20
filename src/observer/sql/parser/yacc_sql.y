@@ -92,6 +92,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         DATA
         INFILE
         EXPLAIN
+        MAX
+        MIN
+        COUNT
+        AVG
+        SUM
         EQ
         LT
         GT
@@ -530,6 +535,12 @@ rel_attr:
       free($1);
       free($3);
     }
+    | MAX LBRACE ID RBRACE{
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $3;
+      $$->
+    }
+    | MAX LBRACE ID DOT ID RBRACE
     ;
 
 attr_list:
