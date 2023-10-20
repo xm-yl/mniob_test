@@ -1,3 +1,4 @@
+*.log.*
 ./deps/3rd
 ./deps/libevent
 ./deps/googletest
