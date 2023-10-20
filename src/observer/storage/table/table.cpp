@@ -494,8 +494,15 @@ RC Table::update_record(Record &record, Value* value, std::string update_attribu
         break;
       }
   }
-
-  memcpy(r + update_location*value->length(), value->data(), value->length());
+  // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
+  
+  // TODO flexible length
+  char *tmp = new char[4];
+  memset(tmp, 0, sizeof(tmp));
+  memcpy(tmp, value->data(), min(4, value->length()));
+  memcpy(r + update_location*4, tmp, 4);
+  delete []tmp;
+  // LOG_DEBUG("[Table:update_record] after-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d", *(r), *(r+4), *(r+8), *(r+12));
   rc = record_handler_->update_record(&record.rid(),record.data());
   return rc;
 }
