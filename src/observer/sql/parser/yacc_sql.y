@@ -522,6 +522,50 @@ select_attr:
     }
     ;
 
+aggr_op:
+  MAX {
+
+  }
+  | AVG {
+
+  }
+  | SUM {
+
+  }
+  | MIN {
+
+  }
+  | COUNT {
+
+  }
+  ;
+
+aggr_func:
+  aggr_op LBRACE ID RBRACE: {
+
+  }
+  | aggr_op LBRACE ID DOT ID RBRACE {
+
+  }
+  ;
+
+aggr_func_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA aggr_func aggr_func_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+
+      $$->emplace_back(*$2);
+      delete $2;
+    }
+    ;
+
 rel_attr:
     ID {
       $$ = new RelAttrSqlNode;
@@ -535,13 +579,6 @@ rel_attr:
       free($1);
       free($3);
     }
-    | MAX LBRACE ID RBRACE{
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->
-    }
-    | MAX LBRACE ID DOT ID RBRACE
-    ;
 
 attr_list:
     /* empty */
