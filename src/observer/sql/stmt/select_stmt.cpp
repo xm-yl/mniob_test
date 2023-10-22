@@ -28,12 +28,21 @@ SelectStmt::~SelectStmt()
   }
 }
 
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas)
+static void wildcard_fields(Table *table, std::vector<Field> &field_metas, AggrOp aggr_op = AggrOp::NO_AGGR_OP)
 {
+  ASSERT(aggr_op==AggrOp::NO_AGGR_OP || aggr_op==AggrOp::AGG_COUNT,"Wildcard field can only be aggrgated with func COUNT");
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
-  for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-    field_metas.push_back(Field(table, table_meta.field(i)));
+  if(aggr_op==AggrOp::AGG_COUNT){
+    //auto star_num = Field::get_next_star_num();
+    int i = table_meta.sys_field_num();
+    field_metas.push_back(Field(table, table_meta.field(i),aggr_op,true));
+    //Field::add_next_star_num();
+  }
+  else if(aggr_op==AggrOp::NO_AGGR_OP){
+    for (int i = table_meta.sys_field_num(); i < field_num; i++) {
+      field_metas.push_back(Field(table, table_meta.field(i)));
+    }
   }
 }
 
@@ -66,16 +75,25 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
   // collect query fields in `select` statement
   std::vector<Field> query_fields;
+  std::vector<AggrOp> attr_ops;
   for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
     const RelAttrSqlNode &relation_attr = select_sql.attributes[i];
-    std::vector<AttrOp> attr_ops;
-
+    const AggrOp aggr_op = relation_attr.aggr_op;
+    LOG_DEBUG("Total %d aggr_op , this is the %d th aggr_op with op %d",select_sql.attributes.size(),i,aggr_op);
+    attr_ops.push_back(relation_attr.aggr_op);
+    //若表名为空，且查询为*，则全部查                             select * from id1，id2 ...
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
       for (Table *table : tables) {
-        wildcard_fields(table, query_fields);
+        if(aggr_op!=AggrOp::NO_AGGR_OP && aggr_op!= AggrOp::AGG_COUNT){
+          LOG_WARN("Aggregation Operation Not Allowd for *");
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+        wildcard_fields(table, query_fields , aggr_op);
       }
-
+    //若表名不空，即table.id 的查询方式                           select *.* from id1,id2 ...
+    //表名为*时，field也必须为*，即*.* 查询所有表的所有id          select id1.*, id2.*from id1,id2
+    //表名不是*时，首先匹配表名，其次组成查询Field(table,id)【若id为*时就wildcard】
     } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
       const char *table_name = relation_attr.relation_name.c_str();
       const char *field_name = relation_attr.attribute_name.c_str();
@@ -86,7 +104,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           return RC::SCHEMA_FIELD_MISSING;
         }
         for (Table *table : tables) {
-          wildcard_fields(table, query_fields);
+          if(aggr_op!=AggrOp::NO_AGGR_OP && aggr_op!= AggrOp::AGG_COUNT){
+          LOG_WARN("Aggregation Operation Not Allowd for *");
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          }
+          wildcard_fields(table, query_fields, aggr_op);
         }
       } else {
         auto iter = table_map.find(table_name);
@@ -97,7 +119,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
 
         Table *table = iter->second;
         if (0 == strcmp(field_name, "*")) {
-          wildcard_fields(table, query_fields);
+          if(aggr_op!=AggrOp::NO_AGGR_OP && aggr_op!= AggrOp::AGG_COUNT){
+          LOG_WARN("Aggregation Operation Not Allowd for *");
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          }
+          wildcard_fields(table, query_fields,aggr_op);
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
           if (nullptr == field_meta) {
@@ -105,7 +131,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          query_fields.push_back(Field(table, field_meta));
+          query_fields.push_back(Field(table, field_meta,aggr_op));
         }
       }
     } else {
@@ -120,8 +146,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
       }
-
-      query_fields.push_back(Field(table, field_meta));
+      // 算术聚合操作仅适用于int和float
+      if((aggr_op==AggrOp::AGG_AVG || aggr_op==AggrOp::AGG_MAX || 
+          aggr_op==AggrOp::AGG_SUM || aggr_op==AggrOp::AGG_MIN)
+          && (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS)){
+            LOG_WARN("Aggregation Operation Not Allowed from the data type");
+            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+          }
+      query_fields.push_back(Field(table, field_meta, aggr_op));
     }
   }
 
@@ -144,7 +176,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     LOG_WARN("cannot construct filter stmt");
     return rc;
   }
-
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy

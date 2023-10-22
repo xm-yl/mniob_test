@@ -16,7 +16,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "storage/record/record.h"
 #include "common/log/log.h"
-
+int Field::next_star_num = 0;
 void Field::set_int(Record &record, int value)
 {
   ASSERT(field_->type() == AttrType::INTS, "could not set int value to a non-int field");

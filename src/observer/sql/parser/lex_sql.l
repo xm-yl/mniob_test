@@ -115,15 +115,14 @@ LOAD                                    RETURN_TOKEN(LOAD);
 DATA                                    RETURN_TOKEN(DATA);
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
-{ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
-"("                                     RETURN_TOKEN(LBRACE);
-")"                                     RETURN_TOKEN(RBRACE);
-
 MAX                                     RETURN_TOKEN(MAX);
 MIN                                     RETURN_TOKEN(MIN);
 COUNT                                   RETURN_TOKEN(COUNT);
 AVG                                     RETURN_TOKEN(AVG);
 SUM                                     RETURN_TOKEN(SUM);
+{ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
+"("                                     RETURN_TOKEN(LBRACE);
+")"                                     RETURN_TOKEN(RBRACE);
 
 ","                                     RETURN_TOKEN(COMMA);
 "="                                     RETURN_TOKEN(EQ);

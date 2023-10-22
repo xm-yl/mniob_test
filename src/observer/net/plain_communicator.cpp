@@ -171,7 +171,7 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
   need_disconnect = true;
 
   SqlResult *sql_result = event->sql_result();
-
+  
   if (RC::SUCCESS != sql_result->return_code() || !sql_result->has_operator()) {
     return write_state(event, need_disconnect);
   }
@@ -186,6 +186,7 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
   const TupleSchema &schema = sql_result->tuple_schema();
   const int cell_num = schema.cell_num();
 
+  //先将标题头都显示出来 ,写 TupleSchema 
   for (int i = 0; i < cell_num; i++) {
     const TupleCellSpec &spec = schema.cell_at(i);
     const char *alias = spec.alias();
@@ -218,40 +219,89 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       return rc;
     }
   }
-
-  rc = RC::SUCCESS;
-  Tuple *tuple = nullptr;
-  while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
-    assert(tuple != nullptr);
-
-    int cell_num = tuple->cell_num();
-    for (int i = 0; i < cell_num; i++) {
-      if (i != 0) {
-        const char *delim = " | ";
-        rc = writer_->writen(delim, strlen(delim));
+  std::vector<AggrOp> aggr_ops;
+  //TODO 这步从schema提取aggrop的过程只有select 有，会影响其他命令的输出
+  //现在是暂时让aggr_op_at 返回NO_aggr_OP 有没有什么更好的办法
+  for (int i = 0; i < cell_num; i++) {
+    const TupleCellSpec &spec = schema.cell_at(i);
+    const AggrOp aggr_op = schema.aggr_op_at(i);
+    aggr_ops.push_back(aggr_op);
+  }
+  //开始写数据
+  if(aggr_ops.empty() || aggr_ops.front()==AggrOp::NO_AGGR_OP){
+    rc = RC::SUCCESS;
+    Tuple *tuple = nullptr;
+    while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
+      assert(tuple != nullptr);
+      int cell_num = tuple->cell_num();
+      for (int i = 0; i < cell_num; i++) {
+        if (i != 0) {
+          const char *delim = " | ";
+          rc = writer_->writen(delim, strlen(delim));
+          if (OB_FAIL(rc)) {
+            LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+            sql_result->close();
+            return rc;
+          }
+        }
+        Value value;
+        rc = tuple->cell_at(i, value);
+        if (rc != RC::SUCCESS) {
+          sql_result->close();
+          return rc;
+        }
+        std::string cell_str = value.to_string();
+        rc = writer_->writen(cell_str.data(), cell_str.size());
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to send data to client. err=%s", strerror(errno));
           sql_result->close();
           return rc;
         }
       }
-
-      Value value;
-      rc = tuple->cell_at(i, value);
-      if (rc != RC::SUCCESS) {
-        sql_result->close();
-        return rc;
-      }
-
-      std::string cell_str = value.to_string();
-      rc = writer_->writen(cell_str.data(), cell_str.size());
+      char newline = '\n';
+      rc = writer_->writen(&newline, 1);
       if (OB_FAIL(rc)) {
         LOG_WARN("failed to send data to client. err=%s", strerror(errno));
         sql_result->close();
         return rc;
       }
     }
-
+  }
+  //如果是要聚合的话
+  else{
+    //先把数据扫一边聚合
+    rc = RC::SUCCESS;
+    Tuple *tuple = nullptr;
+    int count = 0;
+    while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))){
+      count ++;
+    }
+    std::vector<float> record = sql_result->get_aggregation_result();
+    if(!record.empty()){
+      for (int i = 0; i < cell_num; i++) {
+        // for(int j = i + 1;j < cell_num;j++){
+        // a = a || visible[i];
+        // }
+        if(0 != i){
+          const char *delim = " | ";
+          rc = writer_->writen(delim, strlen(delim));
+          if (OB_FAIL(rc)) {
+          LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+          sql_result->close();
+          return rc;
+          }
+        }
+        float* data = new float(record[i]);
+        Value data_write(FLOATS,reinterpret_cast<char*> (data),4);
+        std::string cell_str = data_write.to_string();
+        rc = writer_->writen(cell_str.data(), cell_str.size());
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+          sql_result->close();
+          return rc;
+        }
+      }
+    }
     char newline = '\n';
     rc = writer_->writen(&newline, 1);
     if (OB_FAIL(rc)) {
@@ -283,7 +333,6 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
       sql_result->close();
       return rc;
     }
-
     need_disconnect = false;
   }
 

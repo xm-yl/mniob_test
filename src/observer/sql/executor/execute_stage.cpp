@@ -24,6 +24,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/session_event.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
+#include "sql/parser/parse_defs.h"
 #include "storage/default/default_handler.h"
 #include "sql/executor/command_executor.h"
 #include "sql/operator/calc_physical_operator.h"
@@ -68,12 +69,23 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::SELECT: {
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
       bool with_table_name = select_stmt->tables().size() > 1;
-
+      int star_version = -1;
+      bool visible = true;
       for (const Field &field : select_stmt->query_fields()) {
+        AggrOp aggr_op = field.aggr_op();
+        const char* table_name = field.table_name();
+        const char* field_name = field.get_name_with_oper();
+        LOG_DEBUG("This cell table name %s, field name %s", table_name,field_name);
+        //没有聚合操作时的正常情况
+        //if(aggr_op == AggrOp::NO_AGGR_OP){
+        // #TODO 这里用TUPLE设置显示名称的时候，field_name直接就输出的是SUM+(ID),看看能不能把组装过程放到
+        // append_cell 里面
         if (with_table_name) {
-          schema.append_cell(field.table_name(), field.field_name());
+          schema.append_cell(table_name, field_name);
+          schema.append_aggr_ops(aggr_op);
         } else {
-          schema.append_cell(field.field_name());
+          schema.append_cell(field_name);
+          schema.append_aggr_ops(aggr_op);
         }
       }
     } break;

@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/tuple_cell.h"
 #include "sql/parser/parse.h"
 #include "sql/parser/value.h"
+#include "sql/parser/parse_defs.h"
 #include "sql/expr/expression.h"
 #include "storage/record/record.h"
 
@@ -63,6 +64,10 @@ public:
   {
     append_cell(TupleCellSpec(alias));
   }
+  void append_aggr_ops(AggrOp aggr_op)
+  {
+    aggr_ops_.push_back(aggr_op);
+  }
   int cell_num() const
   {
     return static_cast<int>(cells_.size());
@@ -71,9 +76,15 @@ public:
   {
     return cells_[i];
   }
+  const AggrOp aggr_op_at(int i)const
+  {
+    if(aggr_ops_.empty())return AggrOp::NO_AGGR_OP;
+    return aggr_ops_[i];
+  }
 
 private:
   std::vector<TupleCellSpec> cells_;
+  std::vector<AggrOp> aggr_ops_;
 };
 
 /**

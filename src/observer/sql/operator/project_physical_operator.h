@@ -33,7 +33,7 @@ public:
     
   }
   void add_projection(const Table *table, const FieldMeta *field);
-
+  void add_aggregation(const AggrOp aggr_op);
   PhysicalOperatorType type() const override
   {
     return PhysicalOperatorType::PROJECT;
@@ -42,14 +42,26 @@ public:
   RC open(Trx *trx) override;
   RC next() override;
   RC close() override;
-
+  void aggregate(ProjectTuple* current_tuple);
+  
+  //遍历结束后处理聚合记录，算平均和COUNT等
+  void process_aggr_record();
+  void set_aggregate(){
+    is_aggregate = true;
+  }
   int cell_num() const
   {
     return tuple_.cell_num();
   }
-
+  std::vector<float> get_aggrgation_result() const{
+    return aggr_result_;
+  }
   Tuple *current_tuple() override;
 
 private:
   ProjectTuple tuple_;
+  std::vector<AggrOp> aggr_ops_;
+  std::vector<float> aggr_result_;
+  bool is_aggregate = false;
+  int count = 0; 
 };

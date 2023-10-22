@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "sql/stmt/stmt.h"
 #include "storage/field/field.h"
+#include "sql/parser/parse_defs.h"
 
 class FieldMeta;
 class FilterStmt;
@@ -53,6 +54,14 @@ public:
   {
     return query_fields_;
   }
+  // const std::vector<std::string> &aggr_fields() const
+  // {
+  //   return aggr_fields_;
+  // }
+  // const std::vector<AggrOp> &aggr_ops() const
+  // {
+  //   return aggr_ops_;
+  // }
   FilterStmt *filter_stmt() const
   {
     return filter_stmt_;
@@ -62,4 +71,6 @@ private:
   std::vector<Field> query_fields_;
   std::vector<Table *> tables_;
   FilterStmt *filter_stmt_ = nullptr;
+  // std::vector<std::string> aggr_fields_;
+  // std::vector<AggrOp> aggr_ops_;
 };

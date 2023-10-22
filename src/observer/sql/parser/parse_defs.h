@@ -27,16 +27,15 @@ class Expression;
 /**
  * @defgroup SQLParser SQL Parser 
  */
-
+#undef COUNT
 enum AggrOp{
-  MAX,
-  MIN,
-  COUNT,
-  AVG, 
-  SUM,
+  AGG_MAX,
+  AGG_MIN,
+  AGG_COUNT,
+  AGG_AVG, 
+  AGG_SUM,
   NO_AGGR_OP
 };
-
 /**
  * @brief 描述一个属性
  * @ingroup SQLParser

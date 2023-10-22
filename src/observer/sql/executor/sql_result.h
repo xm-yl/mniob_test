@@ -19,9 +19,9 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/tuple.h"
 #include "sql/operator/physical_operator.h"
-
+#include "sql/operator/project_physical_operator.h"
 class Session;
-
+class ProjectPhysicalOperator;
 /**
  * @brief SQL执行结果
  * @details 
@@ -64,7 +64,11 @@ public:
   {
     return state_string_;
   }
-
+  const std::vector<float> get_aggregation_result() const{
+    PhysicalOperator* a = operator_.get();
+    ProjectPhysicalOperator* b = dynamic_cast<ProjectPhysicalOperator*>(a);
+    return b->get_aggrgation_result();
+  }
   RC open();
   RC close();
   RC next_tuple(Tuple *&tuple);

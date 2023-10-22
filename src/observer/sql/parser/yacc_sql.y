@@ -110,6 +110,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   ConditionSqlNode *                condition;
   Value *                           value;
   enum CompOp                       comp;
+  enum AggrOp                       aggr_op;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
@@ -137,15 +138,19 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <aggr_op>             aggr_op
 %type <rel_attr>            rel_attr
+%type <rel_attr>            aggr_func
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
 %type <condition_list>      condition_list
+%type <rel_attr_list>       select_aggr_attr
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
 %type <rel_attr_list>       attr_list
+%type <rel_attr_list>       aggr_func_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <sql_node>            calc_stmt
@@ -429,7 +434,27 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where
+    SELECT select_aggr_attr FROM ID rel_list where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+      if ($5 != nullptr) {
+        $$->selection.relations.swap(*$5);
+        delete $5;
+      }
+      $$->selection.relations.push_back($4);
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+
+      if ($6 != nullptr) {
+        $$->selection.conditions.swap(*$6);
+        delete $6;
+      }
+      free($4);
+    }
+    | SELECT select_attr FROM ID rel_list where
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -524,28 +549,51 @@ select_attr:
 
 aggr_op:
   MAX {
-
+    $$ = AGG_MAX;
   }
   | AVG {
-
+    $$ = AGG_AVG;
   }
   | SUM {
-
+    $$ = AGG_SUM;
   }
   | MIN {
-
+    $$ = AGG_MIN;
   }
   | COUNT {
-
+    $$ = AGG_COUNT;
   }
   ;
-
+select_aggr_attr:
+  aggr_func aggr_func_list{
+    if ($2 != nullptr){
+      $$ = $2;
+    } else {
+      $$ = new std::vector<RelAttrSqlNode>;
+    }
+    $$->emplace_back(*$1);
+    delete $1;
+  };
 aggr_func:
-  aggr_op LBRACE ID RBRACE: {
-
+  aggr_op LBRACE '*' RBRACE {
+    $$ = new RelAttrSqlNode;
+    $$->relation_name = "";
+    $$->attribute_name = '*';
+    $$->aggr_op = $1;
+  }
+  | aggr_op LBRACE ID RBRACE {
+    $$ = new RelAttrSqlNode;
+    $$->attribute_name = $3;
+    $$->aggr_op = $1;
+    free($3);    
   }
   | aggr_op LBRACE ID DOT ID RBRACE {
-
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $3;
+      $$->attribute_name = $5;
+      $$->aggr_op = $1;
+      free($3);
+      free($5);
   }
   ;
 
@@ -560,7 +608,6 @@ aggr_func_list:
       } else {
         $$ = new std::vector<RelAttrSqlNode>;
       }
-
       $$->emplace_back(*$2);
       delete $2;
     }
