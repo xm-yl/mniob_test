@@ -62,75 +62,98 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
   RC rc = RC::SUCCESS;
   Tuple* tuple = current_tuple;
   std::vector<float>& record = aggr_result_;
+  std::vector<Value>& record_ = aggr_result__;
   const std::vector<AggrOp> aggr_ops = aggr_ops_;
-  if(aggr_result_.empty()){
-    //Tuple* set_tuple = new Tuple(current_tuple);
-    //aggr_tuple_.set_tuple(current_tuple);
-    for(int i = 0; i < current_tuple->cell_num(); i++){
-      aggr_result_.push_back(0);
+  if(aggr_result__.empty()){
+    for(int i= 0; i< current_tuple->cell_num();i++){
+      Value current_cell;
+      current_tuple->cell_at(i,current_cell);
+      aggr_result__.push_back(current_cell);
     }
-    aggr_result_.push_back(1);//作为是否初始化最大最小的标记
-    //is_init = true;
   }
-  assert(tuple != nullptr);
-  int cell_num = tuple->cell_num();
-  for (int i = 0; i < cell_num; i++){
-    Value value;
-    rc = tuple->cell_at(i, value);
-    // if (rc != RC::SUCCESS) {
-    //   return rc;
-    // }
-    switch (aggr_ops[i]){
-      case AggrOp::AGG_AVG:{
-        if(value.attr_type() == AttrType::INTS){
-          record[i] = record[i] + value.get_int();
-        }
-        else record[i] = record[i] + value.get_float();
-      } break;
-      case AggrOp::AGG_MAX:{
-        if(record[cell_num]){
-          record[cell_num] = 0;
+  // if(aggr_result_.empty()){
+  //   //Tuple* set_tuple = new Tuple(current_tuple);
+  //   //aggr_tuple_.set_tuple(current_tuple);
+  //   for(int i = 0; i < current_tuple->cell_num(); i++){
+  //     aggr_result_.push_back(0);
+  //   }
+  //   aggr_result_.push_back(1);//作为是否初始化最大最小的标记
+  //   //is_init = true;
+  // }
+  else{
+    assert(tuple != nullptr);
+    int cell_num = tuple->cell_num();
+    for (int i = 0; i < cell_num; i++){
+      Value value;
+      rc = tuple->cell_at(i, value);
+      // if (rc != RC::SUCCESS) {
+      //   return rc;
+      // }
+      switch (aggr_ops[i]){
+        case AggrOp::AGG_AVG:{
           if(value.attr_type() == AttrType::INTS){
-            record[i] = value.get_int();
-          }
-          else record[i] = value.get_float();
-        }
-        else{
-          if(value.attr_type() == AttrType::INTS){
-            int current = value.get_int();
-            if(current > record[i]) record[i] = current;
+            record_[i].set_int(record_[i].get_int() + value.get_int());
+            // record[i] = record[i] + value.get_int();
           }
           else{
-            float current = value.get_float();
-            if(current > record[i]) record[i] = current;
+            record_[i].set_int(record_[i].get_float() + value.get_float());
+            // record[i] = record[i] + value.get_float();
           }
-        }
-      }break;
-      case AggrOp::AGG_MIN:{
-        if(record[cell_num]){
-          record[cell_num] = 0;
+        } break;
+        case AggrOp::AGG_SUM:{
           if(value.attr_type() == AttrType::INTS){
-            record[i] = value.get_int();
-          }
-          else record[i] = value.get_float();
-        }
-        else{
-          if(value.attr_type() == AttrType::INTS){
-            int current = value.get_int();
-            if(current < record[i]) record[i] = current;
+            record_[i].set_int(record_[i].get_int() + value.get_int());
+            // record[i] = record[i] + value.get_int();
           }
           else{
-            float current = value.get_float();
-            if(current < record[i]) record[i] = current;
+            record_[i].set_int(record_[i].get_float() + value.get_float());
+            // record[i] = record[i] + value.get_float();
           }
-        }
-      } break;
-      case AggrOp::AGG_SUM:{
-        if(value.attr_type() == AttrType::INTS){
-          record[i] = record[i] + value.get_int();
-        }
-        else record[i] = record[i] + value.get_float();
-      } break;
+        } break;
+        case AggrOp::AGG_MAX:{
+          AttrType tmp = value.attr_type();
+          int result = record_[i].compare(value);
+          if(result < 0) record_[i] = value;
+          // if(record[cell_num]){
+          //   record[cell_num] = 0;
+          //   if(value.attr_type() == AttrType::INTS){
+          //     record[i] = value.get_int();
+          //   }
+          //   else record[i] = value.get_float();
+          // }
+          // else{
+          //   if(value.attr_type() == AttrType::INTS){
+          //     int current = value.get_int();
+          //     if(current > record[i]) record[i] = current;
+          //   }
+          //   else{
+          //     float current = value.get_float();
+          //     if(current > record[i]) record[i] = current;
+          //   }
+          // }
+        }break;
+        case AggrOp::AGG_MIN:{
+          int result = record_[i].compare(value);
+          if(result > 0) record_[i] = value;
+          // if(record[cell_num]){
+          //   record[cell_num] = 0;
+          //   if(value.attr_type() == AttrType::INTS){
+          //     record[i] = value.get_int();
+          //   }
+          //   else record[i] = value.get_float();
+          // }
+          // else{
+          //   if(value.attr_type() == AttrType::INTS){
+          //     int current = value.get_int();
+          //     if(current < record[i]) record[i] = current;
+          //   }
+          //   else{
+          //     float current = value.get_float();
+          //     if(current < record[i]) record[i] = current;
+          //   }
+          // }
+        } break;
+      }
     }
   }
   // min_init_token = true;
@@ -138,13 +161,22 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
 }
 void ProjectPhysicalOperator::process_aggr_record(){
   const std::vector<AggrOp> aggr_ops = aggr_ops_;;
-  for (int i = 0; i < aggr_result_.size(); i++){
+  for (int i = 0; i < aggr_result__.size(); i++){
       switch (aggr_ops[i]){
         case AggrOp::AGG_COUNT:{
-          aggr_result_[i] = count;
+          aggr_result__[i].set_type(AttrType::FLOATS);
+          aggr_result__[i].set_float(count);
         } break;
         case AggrOp::AGG_AVG :{
-          aggr_result_[i] = aggr_result_[i] / count;
+          AttrType tmp = aggr_result__[i].attr_type();
+          if(tmp == AttrType::INTS){
+            float sum = aggr_result__[i].get_int();
+            aggr_result__[i].set_type(AttrType::FLOATS);
+            aggr_result__[i].set_float(sum/count);
+          }
+          else{
+            aggr_result__[i].set_float(aggr_result__[i].get_float()/count);
+          }
         } break;
       }
     }

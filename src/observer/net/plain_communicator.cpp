@@ -276,7 +276,7 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))){
       count ++;
     }
-    std::vector<float> record = sql_result->get_aggregation_result();
+    std::vector<Value> record = sql_result->get_aggregation_result();
     if(!record.empty()){
       for (int i = 0; i < cell_num; i++) {
         // for(int j = i + 1;j < cell_num;j++){
@@ -291,9 +291,9 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
           return rc;
           }
         }
-        float* data = new float(record[i]);
-        Value data_write(FLOATS,reinterpret_cast<char*> (data),4);
-        std::string cell_str = data_write.to_string();
+        // float* data = new float(record[i]);
+        // Value data_write(FLOATS,reinterpret_cast<char*> (data),4);
+        std::string cell_str = record[i].to_string();
         rc = writer_->writen(cell_str.data(), cell_str.size());
         if (OB_FAIL(rc)) {
           LOG_WARN("failed to send data to client. err=%s", strerror(errno));

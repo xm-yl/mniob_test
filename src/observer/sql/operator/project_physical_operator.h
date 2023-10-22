@@ -53,8 +53,8 @@ public:
   {
     return tuple_.cell_num();
   }
-  std::vector<float> get_aggrgation_result() const{
-    return aggr_result_;
+  std::vector<Value> get_aggrgation_result() const{
+    return aggr_result__;
   }
   Tuple *current_tuple() override;
 
@@ -62,6 +62,7 @@ private:
   ProjectTuple tuple_;
   std::vector<AggrOp> aggr_ops_;
   std::vector<float> aggr_result_;
+  std::vector<Value> aggr_result__;
   bool is_aggregate = false;
   int count = 0; 
 };

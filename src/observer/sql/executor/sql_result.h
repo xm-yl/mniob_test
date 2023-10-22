@@ -64,7 +64,7 @@ public:
   {
     return state_string_;
   }
-  const std::vector<float> get_aggregation_result() const{
+  const std::vector<Value> get_aggregation_result() const{
     PhysicalOperator* a = operator_.get();
     ProjectPhysicalOperator* b = dynamic_cast<ProjectPhysicalOperator*>(a);
     return b->get_aggrgation_result();

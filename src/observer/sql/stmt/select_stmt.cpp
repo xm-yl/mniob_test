@@ -27,7 +27,36 @@ SelectStmt::~SelectStmt()
     filter_stmt_ = nullptr;
   }
 }
-
+//聚合操作与类型检查
+static bool check_type_match(AttrType field_type, AggrOp aggr_op){
+  switch(aggr_op){
+    case(AggrOp::NO_AGGR_OP):{
+      return true;
+    }
+    case(AggrOp::AGG_AVG):{
+      if(field_type==AttrType::INTS || field_type==AttrType::FLOATS) return true;
+      else return false;
+    }
+    case(AggrOp::AGG_SUM):{
+      if(field_type==AttrType::INTS || field_type==AttrType::FLOATS) return true;
+      else return false;
+    }
+    case(AggrOp::AGG_COUNT):{
+      return true;
+    }
+    case(AggrOp::AGG_MIN):{
+      if(field_type == AttrType::BOOLEANS) return false;
+      else return true;
+    }
+    case(AggrOp::AGG_MAX):{
+      if(field_type == AttrType::BOOLEANS) return false;
+      else return true;
+    }
+    default: {
+      return false;
+    }
+  }
+}
 static void wildcard_fields(Table *table, std::vector<Field> &field_metas, AggrOp aggr_op = AggrOp::NO_AGGR_OP)
 {
   ASSERT(aggr_op==AggrOp::NO_AGGR_OP || aggr_op==AggrOp::AGG_COUNT,"Wildcard field can only be aggrgated with func COUNT");
@@ -147,12 +176,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         return RC::SCHEMA_FIELD_MISSING;
       }
       // 算术聚合操作仅适用于int和float
-      if((aggr_op==AggrOp::AGG_AVG || aggr_op==AggrOp::AGG_MAX || 
-          aggr_op==AggrOp::AGG_SUM || aggr_op==AggrOp::AGG_MIN)
-          && (field_meta->type() != AttrType::INTS && field_meta->type() != AttrType::FLOATS)){
-            LOG_WARN("Aggregation Operation Not Allowed from the data type");
-            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-          }
+      if(!check_type_match(field_meta->type(),aggr_op)){
+        LOG_WARN("Aggregation Operation Not Allowed from the data type");
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
       query_fields.push_back(Field(table, field_meta, aggr_op));
     }
   }
