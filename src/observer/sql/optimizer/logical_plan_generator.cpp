@@ -89,14 +89,16 @@ RC LogicalPlanGenerator::create_plan(
 
   const std::vector<Table *> &tables = select_stmt->tables();
   const std::vector<Field> &all_fields = select_stmt->query_fields();
+  //遍历要from的表
   for (Table *table : tables) {
+    //把属于当前表的field的加入数组
     std::vector<Field> fields;
     for (const Field &field : all_fields) {
       if (0 == strcmp(field.table_name(), table->name())) {
         fields.push_back(field);
       }
     }
-
+    //若有多个表的话就构建出join连接的树
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true/*readonly*/));
     if (table_oper == nullptr) {
       table_oper = std::move(table_get_oper);

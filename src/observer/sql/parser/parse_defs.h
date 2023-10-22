@@ -27,7 +27,15 @@ class Expression;
 /**
  * @defgroup SQLParser SQL Parser 
  */
-
+#undef COUNT
+enum AggrOp{
+  AGG_MAX,
+  AGG_MIN,
+  AGG_COUNT,
+  AGG_AVG, 
+  AGG_SUM,
+  NO_AGGR_OP
+};
 /**
  * @brief 描述一个属性
  * @ingroup SQLParser
@@ -39,6 +47,10 @@ struct RelAttrSqlNode
 {
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
+  AggrOp aggr_op;
+  RelAttrSqlNode() {
+    aggr_op = AggrOp::NO_AGGR_OP;
+  }
 };
 
 /**

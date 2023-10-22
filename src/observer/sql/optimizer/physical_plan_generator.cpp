@@ -86,7 +86,7 @@ RC PhysicalPlanGenerator::create(LogicalOperator &logical_operator, unique_ptr<P
   }
   return rc;
 }
-
+//RC PhysicalPlanGenerator::create_plan(AggregationLogicalOperator & aggr_oper, unique_ptr<PhysicalOperator> & oper);
 RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, unique_ptr<PhysicalOperator> &oper)
 {
   vector<unique_ptr<Expression>> &predicates = table_get_oper.predicates();
@@ -198,6 +198,9 @@ RC PhysicalPlanGenerator::create_plan(ProjectLogicalOperator &project_oper, uniq
   const vector<Field> &project_fields = project_oper.fields();
   for (const Field &field : project_fields) {
     project_operator->add_projection(field.table(), field.meta());
+    if(field.aggr_op() != AggrOp::NO_AGGR_OP)
+      project_operator->set_aggregate();
+      project_operator->add_aggregation(field.aggr_op());
   }
 
   if (child_phy_oper) {
