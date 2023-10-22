@@ -69,6 +69,7 @@ RC LogicalPlanGenerator::create(Stmt *stmt, unique_ptr<LogicalOperator> &logical
       ExplainStmt *explain_stmt = static_cast<ExplainStmt *>(stmt);
       rc = create_plan(explain_stmt, logical_operator);
     } break;
+    case 
     default: {
       rc = RC::UNIMPLENMENT;
     }

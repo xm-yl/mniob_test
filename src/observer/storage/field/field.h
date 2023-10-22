@@ -132,6 +132,6 @@ private:
   const FieldMeta *field_ = nullptr;
   AggrOp aggr_op_ = AggrOp::NO_AGGR_OP;
   bool is_star_ = false; // 是否是代表star聚合的Field
-  int star_num_ = 0;
+  int star_num_ = 0; // 现在没用
   std::string name_with_oper = "";
 };

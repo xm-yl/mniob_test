@@ -122,6 +122,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<std::string> *        index_list;
   char *                            string;
   int                               number;
   float                             floats;
@@ -151,6 +152,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       select_aggr_attr
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
+%type <index_list>          ind_list
 %type <rel_attr_list>       attr_list
 %type <rel_attr_list>       aggr_func_list
 %type <expression>          expression
@@ -269,9 +271,24 @@ desc_table_stmt:
       free($2);
     }
     ;
-
+ind_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA ID ind_list {
+      if($3 != nullptr){
+        $$ = $3;
+      }else{
+        $$ = new std::vector<std::string>; 
+      }
+      $$->push_back($2);
+      free($2);
+    }
+    
+    
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE INDEX ID ON ID LBRACE ID ind_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
