@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 
+//TODO ready to delete this function.
 RC IndexMeta::init(const char *name, const FieldMeta &field)
 {
   if (common::is_blank(name)) {
@@ -31,6 +32,20 @@ RC IndexMeta::init(const char *name, const FieldMeta &field)
 
   name_ = name;
   field_ = field.name();
+  return RC::SUCCESS;
+}
+RC IndexMeta::init_multi_index(const char* name, const std::vector<const FieldMeta*> & field_metas){
+  if (common::is_blank(name)) {
+    LOG_ERROR("Failed to init index, name is empty.");
+    return RC::INVALID_ARGUMENT;
+  }
+  name_ = name;
+  for(const FieldMeta* field_meta:field_metas){
+    FieldMeta new_field_meta = *field_meta;
+    field_metas_.push_back(new_field_meta);
+    fields_.push_back(new_field_meta.name());
+    fields_type_.push_back(new_field_meta.type());
+  }
   return RC::SUCCESS;
 }
 

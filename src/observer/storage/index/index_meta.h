@@ -36,18 +36,25 @@ public:
   IndexMeta() = default;
 
   RC init(const char *name, const FieldMeta &field);
-
+  RC init_multi_index(const char* name, const std::vector<const FieldMeta*>& field_metas);
 public:
   const char *name() const;
   const char *field() const;
-
+  std::vector<FieldMeta> field_metas() const;
+  std::vector<std::string> fields() const; //返回索引项的名称
+  std::vector<AttrType> fields_type() const; //返回索引项的类型
+  const int  field_count() const; // 返回该索引引用的field数量
   void desc(std::ostream &os) const;
 
 public:
   void to_json(Json::Value &json_value) const;
   static RC from_json(const TableMeta &table, const Json::Value &json_value, IndexMeta &index);
 
+
 protected:
   std::string name_;   // index's name
   std::string field_;  // field's name
+  std::vector<FieldMeta> field_metas_; // used for multi-index;
+  std::vector<std::string> fields_;
+  std::vector<AttrType> fields_type_;
 };

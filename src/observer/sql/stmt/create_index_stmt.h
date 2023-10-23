@@ -29,7 +29,7 @@ class FieldMeta;
 class CreateIndexStmt : public Stmt
 {
 public:
-  CreateIndexStmt(Table *table, std::vector<const FieldMeta *>field_metas, const std::string &index_name)
+  CreateIndexStmt(Table *table, const std::vector<const FieldMeta *>& field_metas, const std::string &index_name)
         : table_(table),
           field_metas_(field_metas),
           index_name_(index_name)

@@ -19,9 +19,7 @@ BplusTreeIndex::~BplusTreeIndex() noexcept
 {
   close();
 }
-
-RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta)
-{
+RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, const std::vector<FieldMeta> &field_metas){
   if (inited_) {
     LOG_WARN("Failed to create index due to the index has been created before. file_name:%s, index:%s, field:%s",
         file_name,
@@ -29,10 +27,13 @@ RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, co
         index_meta.field());
     return RC::RECORD_OPENNED;
   }
-
-  Index::init(index_meta, field_meta);
-
-  RC rc = index_handler_.create(file_name, field_meta.type(), field_meta.len());
+  std::vector<AttrType> attr_types = index_meta.fields_type();  
+  std::vector<int> attr_lengths;
+  for(auto& a:field_metas){
+    attr_lengths.push_back(a.len());
+  }
+  Index::init(index_meta, field_metas);
+  RC rc = index_handler_.create(file_name,attr_types,attr_lengths);
   if (RC::SUCCESS != rc) {
     LOG_WARN("Failed to create index_handler, file_name:%s, index:%s, field:%s, rc:%s",
         file_name,
@@ -47,6 +48,35 @@ RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, co
       "Successfully create index, file_name:%s, index:%s, field:%s", file_name, index_meta.name(), index_meta.field());
   return RC::SUCCESS;
 }
+
+//TODO ready to delete this function.
+// RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta)
+// {
+//   if (inited_) {
+//     LOG_WARN("Failed to create index due to the index has been created before. file_name:%s, index:%s, field:%s",
+//         file_name,
+//         index_meta.name(),
+//         index_meta.field());
+//     return RC::RECORD_OPENNED;
+//   }
+
+//   Index::init(index_meta, field_meta);
+
+//   RC rc = index_handler_.create(file_name, field_meta.type(), field_meta.len());
+//   if (RC::SUCCESS != rc) {
+//     LOG_WARN("Failed to create index_handler, file_name:%s, index:%s, field:%s, rc:%s",
+//         file_name,
+//         index_meta.name(),
+//         index_meta.field(),
+//         strrc(rc));
+//     return rc;
+//   }
+
+//   inited_ = true;
+//   LOG_INFO(
+//       "Successfully create index, file_name:%s, index:%s, field:%s", file_name, index_meta.name(), index_meta.field());
+//   return RC::SUCCESS;
+// }
 
 RC BplusTreeIndex::open(const char *file_name, const IndexMeta &index_meta, const FieldMeta &field_meta)
 {
@@ -89,7 +119,23 @@ RC BplusTreeIndex::close()
 
 RC BplusTreeIndex::insert_entry(const char *record, const RID *rid)
 {
-  return index_handler_.insert_entry(record + field_meta_.offset(), rid);
+  int attr_len = 0;
+  for(int i = 0;i < field_metas_.size(); i++){
+    attr_len += field_metas_[i].len();
+  }
+  //初始化字段拼接是index里面的record数据
+  char *a = (char *)malloc(attr_len);
+  memset(a, 0, attr_len);
+  int offset = 0;
+  for(auto& field_meta:field_metas_){
+    int field_len = field_meta.len();
+    int field_offset = field_meta.offset();
+    memcpy(a + offset, record + field_offset, field_len);
+    offset += field_len;
+  }
+  RC rc = index_handler_.insert_entry(a, rid);
+  free(a);
+  return rc;
 }
 
 RC BplusTreeIndex::delete_entry(const char *record, const RID *rid)

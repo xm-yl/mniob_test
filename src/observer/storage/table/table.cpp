@@ -383,25 +383,41 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const FieldMeta *field_meta, const char *index_name)
+RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_metas, const char *index_name)
 {
-  if (common::is_blank(index_name) || nullptr == field_meta) {
-    LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
+  //检查参数是否合法
+  RC rc = RC::SUCCESS;
+  if (common::is_blank(index_name) || field_metas.empty()){
+    LOG_INFO("Invalid input arguments attribute_name( orindex_name) is blank or no attribute provided: length %d"
+            ,field_metas.size());
     return RC::INVALID_ARGUMENT;
   }
+  //std::vector<IndexMeta> new_index_metas;
+  for(const FieldMeta* field_meta:field_metas){
+    if(nullptr == field_meta){
+      LOG_INFO("Invalid input arguments, table name is %s, attribute_name is blank", name());
+      return RC::INVALID_ARGUMENT;
+    }
+  }
+  // if (common::is_blank(index_name) || nullptr == field_meta) {
+  //   LOG_INFO("Invalid input arguments, table name is %s, index_name is blank or attribute_name is blank", name());
+  //   return RC::INVALID_ARGUMENT;
+  // }
 
   IndexMeta new_index_meta;
-  RC rc = new_index_meta.init(index_name, *field_meta);
+  // RC rc = new_index_meta.init(index_name, *field_meta);
+  RC rc = new_index_meta.init_multi_index(index_name, field_metas);
   if (rc != RC::SUCCESS) {
     LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s", 
-             name(), index_name, field_meta->name());
+             name(), index_name, field_metas[0]->name());
     return rc;
   }
 
   // 创建索引相关数据
   BplusTreeIndex *index = new BplusTreeIndex();
   std::string index_file = table_index_file(base_dir_.c_str(), name(), index_name);
-  rc = index->create(index_file.c_str(), new_index_meta, *field_meta);
+  rc = index->create(index_file.c_str(), new_index_meta, new_index_meta.field_metas());
+  //rc = index->create(index_file.c_str(), new_index_meta, *field_meta);
   if (rc != RC::SUCCESS) {
     delete index;
     LOG_ERROR("Failed to create bplus tree index. file name=%s, rc=%d:%s", index_file.c_str(), rc, strrc(rc));

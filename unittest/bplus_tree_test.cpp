@@ -320,12 +320,17 @@ TEST(test_bplus_tree, test_leaf_index_node_handle)
   index_file_header.leaf_max_size = 5;
   index_file_header.attr_length = 4;
   index_file_header.key_length = 4 + sizeof(RID);
-  index_file_header.attr_type = INTS;
+  index_file_header.attr_lengths[0] = 4;
+  index_file_header.attr_types[0] = INTS;
 
   Frame frame;
 
   KeyComparator key_comparator;
-  key_comparator.init(INTS, 4);
+  std::array<AttrType,MAX_MULTI_INDEX_NUM> attr_types;
+  std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths;
+  attr_types[0] = AttrType::INTS;
+  attr_lengths[0] = 4;
+  key_comparator.init(attr_types, attr_lengths);
 
   LeafIndexNodeHandler leaf_node(index_file_header, &frame);
   leaf_node.init_empty();
@@ -377,12 +382,18 @@ TEST(test_bplus_tree, test_internal_index_node_handle)
   index_file_header.leaf_max_size = 5;
   index_file_header.attr_length = 4;
   index_file_header.key_length = 4 + sizeof(RID);
-  index_file_header.attr_type = INTS;
+  index_file_header.attr_lengths[0] = 4;
+  index_file_header.attr_types[0] = INTS;
+
 
   Frame frame;
 
   KeyComparator key_comparator;
-  key_comparator.init(INTS, 4);
+  std::array<AttrType,MAX_MULTI_INDEX_NUM> attr_types;
+  std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths;
+  attr_types[0] = AttrType::INTS;
+  attr_lengths[0] = 4;
+  key_comparator.init(attr_types, attr_lengths);
 
   InternalIndexNodeHandler internal_node(index_file_header, &frame);
   internal_node.init_empty();
@@ -472,7 +483,11 @@ TEST(test_bplus_tree, test_chars)
   const char *index_name = "chars.btree";
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, CHARS, 8, ORDER, ORDER);
+  std::vector<AttrType> attr_types;
+  attr_types.push_back(AttrType::CHARS);
+  std::vector<int> attr_lengths;
+  attr_lengths.push_back(8);
+  handler->create(index_name, attr_types, attr_lengths, ORDER, ORDER);
 
   char keys[][9] = {
     "abcdefg",
@@ -515,7 +530,11 @@ TEST(test_bplus_tree, test_scanner)
   const char *index_name = "scanner.btree";
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, INTS, sizeof(int), ORDER, ORDER);
+  std::vector<AttrType> attr_types;
+  attr_types.push_back(AttrType::INTS);
+  std::vector<int> attr_lengths;
+  attr_lengths.push_back(sizeof(int));
+  handler->create(index_name, attr_types, attr_lengths, ORDER, ORDER);
 
   int count = 0;
   RC rc = RC::SUCCESS;
@@ -724,7 +743,11 @@ TEST(test_bplus_tree, test_bplus_tree_insert)
 
   ::remove(index_name);
   handler = new BplusTreeHandler();
-  handler->create(index_name, INTS, sizeof(int), ORDER, ORDER);
+  std::vector<AttrType> attr_types;
+  attr_types.push_back(AttrType::INTS);
+  std::vector<int> attr_lengths;
+  attr_lengths.push_back(sizeof(int));
+  handler->create(index_name, attr_types, attr_lengths, ORDER, ORDER);
 
   test_insert();
 

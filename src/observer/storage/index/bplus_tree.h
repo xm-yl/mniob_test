@@ -52,39 +52,57 @@ enum class BplusTreeOperationType
 class AttrComparator 
 {
 public:
-  void init(AttrType type, int length)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths , int attr_num = 1)
   {
-    attr_type_ = type;
-    attr_length_ = length;
+    attr_types_ = types;
+    attr_lengths_ = lengths;
+    attr_num_ = attr_num;
   }
 
   int attr_length() const
   {
-    return attr_length_;
+    int attr_length = 0;
+    for (int a:attr_lengths_){
+      attr_length += a;
+    } 
+    return attr_length;
   }
 
   int operator()(const char *v1, const char *v2) const
   {
-    switch (attr_type_) {
-      case INTS: case DATES:{
-        return common::compare_int((void *)v1, (void *)v2);
-      } break;
-      case FLOATS: {
-        return common::compare_float((void *)v1, (void *)v2);
+    int result = 0;
+    const char* left_oprand = v1;
+    const char* right_oprand = v2;
+    for (int i = 0; i < attr_num_; i++){
+      switch (attr_types_[i]) {
+        case INTS: case DATES:{
+          result =  common::compare_int((void *)left_oprand, (void *)right_oprand);
+        } break;
+        case FLOATS: {
+          result = common::compare_float((void *)left_oprand, (void *)right_oprand);
+        }
+        case CHARS: {
+          result = common::compare_string((void *)left_oprand, attr_lengths_[i], (void *)right_oprand, attr_lengths_[i]);
+        }
+        default: {
+          ASSERT(false, "unknown attr type. %d", attr_type_);
+          return 0;
+        }
+      } 
+      if (result == 0){
+        left_oprand += attr_lengths_[i];
+        right_oprand += attr_lengths_[i];
+        continue;
       }
-      case CHARS: {
-        return common::compare_string((void *)v1, attr_length_, (void *)v2, attr_length_);
-      }
-      default: {
-        ASSERT(false, "unknown attr type. %d", attr_type_);
-        return 0;
-      }
+      else break;
     }
+    return result;
   }
 
 private:
-  AttrType attr_type_;
-  int attr_length_;
+  std::array<AttrType,MAX_MULTI_INDEX_NUM> attr_types_;
+  std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths_;
+  int attr_num_ = 1;
 };
 
 /**
@@ -95,9 +113,9 @@ private:
 class KeyComparator 
 {
 public:
-  void init(AttrType type, int length)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths, int attr_num = 1)
   {
-    attr_comparator_.init(type, length);
+    attr_comparator_.init(types, lengths);
   }
 
   const AttrComparator &attr_comparator() const
@@ -128,46 +146,56 @@ private:
 class AttrPrinter 
 {
 public:
-  void init(AttrType type, int length)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths , int attr_num = 1)
   {
-    attr_type_ = type;
-    attr_length_ = length;
+    attr_types_ = types;
+    attr_lengths_ = lengths;
+    attr_num_ = attr_num;
   }
 
   int attr_length() const
   {
-    return attr_length_;
+    int attr_length = 0;
+    for (int a:attr_lengths_){
+      attr_length += a;
+    } 
+    return attr_length;
   }
 
   std::string operator()(const char *v) const
   {
-    switch (attr_type_) {
-      case INTS: case DATES: {
-        return std::to_string(*(int *)v);
-      } break;
-      case FLOATS: {
-        return std::to_string(*(float *)v);
-      }
-      case CHARS: {
-        std::string str;
-        for (int i = 0; i < attr_length_; i++) {
-          if (v[i] == 0) {
-            break;
+    std::string ret = std::string();
+    for (int i = 0; i < attr_num_; i++){
+      switch (attr_types_[i]) {
+        case INTS: case DATES: {
+          ret += std::to_string(*(int *)v);
+        } break;
+        case FLOATS: {
+           ret += std::to_string(*(float *)v);
+        } break;
+        case CHARS: {
+          std::string str;
+          for (int i = 0; i < attr_lengths_[i]; i++) {
+            if (v[i] == 0) {
+              break;
+            }
+            str.push_back(v[i]);
           }
-          str.push_back(v[i]);
-        }
-        return str;
+           ret += str;
+        } break;
+        default: {
+          ASSERT(false, "unknown attr type. %d", attr_type_);
+        } break;
       }
-      default: {
-        ASSERT(false, "unknown attr type. %d", attr_type_);
-      }
+      if(i != attr_num_ - 1) ret += " "; //隔开不同的attr
     }
-    return std::string();
+    return ret;
   }
 
 private:
-  AttrType attr_type_;
-  int attr_length_;
+  std::array<AttrType,MAX_MULTI_INDEX_NUM> attr_types_;
+  std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths_;
+  int attr_num_;
 };
 
 /**
@@ -177,9 +205,9 @@ private:
 class KeyPrinter 
 {
 public:
-  void init(AttrType type, int length)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths)
   {
-    attr_printer_.init(type, length);
+    attr_printer_.init(types, lengths);
   }
 
   const AttrPrinter &attr_printer() const
@@ -207,6 +235,7 @@ private:
  * @details this is the first page of bplus tree.
  * only one field can be supported, can you extend it to multi-fields?
  */
+const int MAX_MULTI_INDEX_NUM = 16;
 struct IndexFileHeader 
 {
   IndexFileHeader()
@@ -217,18 +246,24 @@ struct IndexFileHeader
   PageNum root_page;          ///< 根节点在磁盘中的页号
   int32_t internal_max_size;  ///< 内部节点最大的键值对数
   int32_t leaf_max_size;      ///< 叶子节点最大的键值对数
-  int32_t attr_length;        ///< 键值的长度
-  int32_t key_length;         ///< attr length + sizeof(RID)
-  AttrType attr_type;         ///< 键值的类型
-
+  int32_t attr_num;           ///< 索引键值的个数
+  int32_t key_length;         ///< attr length(s) + sizeof(RID)
+  int32_t attr_length;        ///< 键值的(总)长度
+  // AttrType attr_type;         ///< 键值的类型
+  //...记录剩下attr - 1 个键值长度与类型
+  std::array<int32_t,MAX_MULTI_INDEX_NUM> attr_lengths;          ///< 多键值长度与类型 
+  std::array<AttrType,MAX_MULTI_INDEX_NUM> attr_types;
   const std::string to_string()
   {
     std::stringstream ss;
 
-    ss << "attr_length:" << attr_length << ","
-       << "key_length:" << key_length << ","
-       << "attr_type:" << attr_type << ","
-       << "root_page:" << root_page << ","
+    ss << "attr_length(total):" << attr_length << ","
+       << "key_length:" << key_length << ",";
+    for (int i = 0; i < attr_num; i++){
+       ss << "attr_length"<< attr_lengths[i]
+          << "attr_type:" << attr_types[i] << ",";
+    }
+    ss << "root_page:" << root_page << ","
        << "internal_max_size:" << internal_max_size << ","
        << "leaf_max_size:" << leaf_max_size << ";";
 
@@ -463,8 +498,8 @@ public:
    * attrType描述被索引属性的类型，attrLength描述被索引属性的长度
    */
   RC create(const char *file_name, 
-            AttrType attr_type, 
-            int attr_length, 
+            const std::vector<AttrType> &attr_type, 
+            const std::vector<int> &attr_length, 
             int internal_max_size = -1, 
             int leaf_max_size = -1);
 
@@ -613,9 +648,9 @@ public:
 
 private:
   /**
-   * 如果key的类型是CHARS, 扩展或缩减user_key的大小刚好是schema中定义的大小
+   * 如果key的类型是CHARS, 扩展或缩减user_key的大小刚好是schema中定义的大小 location 记录了修改的char在key中是第几个
    */
-  RC fix_user_key(const char *user_key, int key_len, bool want_greater, char **fixed_key, bool *should_inclusive);
+  RC fix_user_key(const char *user_key, int key_len, bool want_greater, char **fixed_key, bool *should_inclusive , int location = 0);
 
   void fetch_item(RID &rid);
   bool touch_end();
