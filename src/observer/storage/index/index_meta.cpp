@@ -94,3 +94,11 @@ void IndexMeta::desc(std::ostream &os) const
 {
   os << "index name=" << name_ << ", field=" << field_;
 }
+
+std::vector<FieldMeta> IndexMeta::field_metas() const {
+  return  field_metas_;
+}
+
+std::vector<AttrType> IndexMeta::fields_type() const {
+  return fields_type_;
+}

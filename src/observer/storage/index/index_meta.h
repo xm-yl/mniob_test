@@ -13,12 +13,13 @@ See the Mulan PSL v2 for more details. */
 //
 
 #pragma once
-
+#include <vector>
 #include <string>
 #include "common/rc.h"
-
+#include "sql/parser/value.h"
 class TableMeta;
 class FieldMeta;
+
 
 namespace Json {
 class Value;

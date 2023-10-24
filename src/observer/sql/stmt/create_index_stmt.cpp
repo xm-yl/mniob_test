@@ -28,7 +28,7 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
   const char *table_name = create_index.relation_name.c_str();
   const int index_num = create_index.attribute_name.size();
   if (is_blank(table_name) || is_blank(create_index.index_name.c_str()) || index_num ==0 ) {
-    LOG_WARN("invalid argument. db=%p, table_name=%p, index name=%s, attribute name=%s,attribute num=%d",
+    LOG_WARN("invalid argument. db=%p, table_name=%s, index name=%s, attribute name=%s,attribute num=%d",
         db, table_name, create_index.index_name.c_str(), 'NULL',index_num);
     return RC::INVALID_ARGUMENT;
   }

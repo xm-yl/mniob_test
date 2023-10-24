@@ -28,7 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 #include "common/lang/comparator.h"
 #include "common/log/log.h"
-
+const int MAX_MULTI_INDEX_NUM = 16;
 /**
  * @brief B+树的实现
  * @defgroup BPlusTree
@@ -235,7 +235,6 @@ private:
  * @details this is the first page of bplus tree.
  * only one field can be supported, can you extend it to multi-fields?
  */
-const int MAX_MULTI_INDEX_NUM = 16;
 struct IndexFileHeader 
 {
   IndexFileHeader()

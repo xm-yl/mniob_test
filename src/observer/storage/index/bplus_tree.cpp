@@ -1893,7 +1893,7 @@ RC BplusTreeScanner::close()
 RC BplusTreeScanner::fix_user_key(
   //对过长的CHAR做裁剪 此处key_len表示不含RID的搜索索引长度 TODO
   //目前这一串东西应该仅对一条index查询的时候有用
-    const char *user_key, int key_len, bool want_greater, char **fixed_key, bool *should_inclusive , int location = 0)
+    const char *user_key, int key_len, bool want_greater, char **fixed_key, bool *should_inclusive , int location)
 {
   if (nullptr == fixed_key || nullptr == should_inclusive) {
     return RC::INVALID_ARGUMENT;
