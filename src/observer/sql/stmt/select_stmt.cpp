@@ -123,12 +123,36 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
   }
 
-  LOG_INFO("got %d tables in from stmt and %d fields in query stmt", tables.size(), query_fields.size());
 
   Table *default_table = nullptr;
   if (tables.size() == 1) {
     default_table = tables[0];
   }
+  
+  //create on conditions in `JOIN` statement
+  std::vector<FilterStmt *> on_conditions;
+  for (int i = 0;i < static_cast<int>(select_sql.on_conditions.size()); i++) {
+    
+    if(select_sql.on_conditions[i].size() == 0) {
+      on_conditions.push_back(nullptr);
+      continue;
+    }
+    
+    FilterStmt *filter_stmt = nullptr;
+    RC rc = FilterStmt::create(db,
+        default_table,
+        &table_map,
+        select_sql.on_conditions[i].data(),
+        static_cast<int>(select_sql.on_conditions[i].size()),
+        filter_stmt);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct filter stmt");
+      return rc;
+    }
+    on_conditions.push_back(filter_stmt);
+  }
+
+  LOG_INFO("got %d tables in from stmt and %d fields in query stmt with %d on_conditions", tables.size(), query_fields.size(), on_conditions.size());
 
   // create filter statement in `where` statement
   FilterStmt *filter_stmt = nullptr;
@@ -149,6 +173,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->tables_.swap(tables);
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
+  select_stmt->on_conditions_.swap(on_conditions);
   stmt = select_stmt;
   return RC::SUCCESS;
 }
