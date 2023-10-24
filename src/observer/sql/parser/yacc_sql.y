@@ -465,6 +465,8 @@ join_tables:
     { 
       if ($2 == nullptr) {
         $$ = new std::vector<JoinTableSqlNode>;
+      } else {
+        $$ = $2;
       }
 
       $$->push_back(*$1);
@@ -544,7 +546,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       $$->selection.relations.push_back($5->table_name);
       $$->selection.on_conditions.push_back($5->on_conditions);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
+      std::reverse($$->selection.relations.begin() + 1, $$->selection.relations.end());
       std::reverse($$->selection.on_conditions.begin(), $$->selection.on_conditions.end());
       delete $5;
 
