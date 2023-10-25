@@ -81,11 +81,11 @@ public:
   virtual RC sync() = 0;
 
 protected:
-  RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
+  // RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
   RC init(const IndexMeta &index_meta, const std::vector<FieldMeta> &field_metas);
 protected:
   IndexMeta index_meta_;  ///< 索引的元数据
-  FieldMeta field_meta_;  ///< 当前实现仅考虑一个字段的索引   //TODO ready to delete this function.
+  //FieldMeta field_meta_;  ///< 当前实现仅考虑一个字段的索引   //TODO ready to delete this function.
   std::vector<FieldMeta> field_metas_; /// <增加对多个字段的索引>
 };
 

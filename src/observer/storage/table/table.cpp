@@ -198,10 +198,13 @@ RC Table::open(const char *meta_file, const char *base_dir)
   const int index_num = table_meta_.index_num();
   for (int i = 0; i < index_num; i++) {
     const IndexMeta *index_meta = table_meta_.index(i);
-    const FieldMeta *field_meta = table_meta_.field(index_meta->field());
-    if (field_meta == nullptr) {
-      LOG_ERROR("Found invalid index meta info which has a non-exists field. table=%s, index=%s, field=%s",
-                name(), index_meta->name(), index_meta->field());
+    const std::vector<FieldMeta> field_metas= index_meta->field_metas();
+
+    // const FieldMeta *field_meta = table_meta_.field(index_meta->field());
+    // TODO 看看这里要不要用上面的语句重新构建FIELDMETA
+    if (field_metas.empty()) {
+      LOG_ERROR("Found invalid index meta info which has a non-exists field. table=%s, index=%s",
+                name(), index_meta->name());
       // skip cleanup
       //  do all cleanup action in destructive Table function
       return RC::INTERNAL;
@@ -209,7 +212,7 @@ RC Table::open(const char *meta_file, const char *base_dir)
 
     BplusTreeIndex *index = new BplusTreeIndex();
     std::string index_file = table_index_file(base_dir, name(), index_meta->name());
-    rc = index->open(index_file.c_str(), *index_meta, *field_meta);
+    rc = index->open(index_file.c_str(), *index_meta, field_metas);
     if (rc != RC::SUCCESS) {
       delete index;
       LOG_ERROR("Failed to open index. table=%s, index=%s, file=%s, rc=%s",

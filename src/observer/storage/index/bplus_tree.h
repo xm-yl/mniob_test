@@ -52,7 +52,7 @@ enum class BplusTreeOperationType
 class AttrComparator 
 {
 public:
-  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths , int attr_num = 1)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths , int attr_num)
   {
     attr_types_ = types;
     attr_lengths_ = lengths;
@@ -102,7 +102,7 @@ public:
 private:
   std::array<AttrType,MAX_MULTI_INDEX_NUM> attr_types_;
   std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths_;
-  int attr_num_ = 1;
+  int attr_num_ = 0;
 };
 
 /**
@@ -110,12 +110,14 @@ private:
  * @details BplusTree的键值除了字段属性，还有RID，是为了避免属性值重复而增加的。
  * @ingroup BPlusTree
  */
+
+//TODO 
 class KeyComparator 
 {
 public:
-  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths, int attr_num = 1)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths, int attr_num)
   {
-    attr_comparator_.init(types, lengths);
+    attr_comparator_.init(types, lengths, attr_num);
   }
 
   const AttrComparator &attr_comparator() const
@@ -205,9 +207,9 @@ private:
 class KeyPrinter 
 {
 public:
-  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths, int attr_num)
   {
-    attr_printer_.init(types, lengths);
+    attr_printer_.init(types, lengths, attr_num);
   }
 
   const AttrPrinter &attr_printer() const

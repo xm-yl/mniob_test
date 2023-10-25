@@ -36,11 +36,10 @@ class IndexMeta
 public:
   IndexMeta() = default;
 
-  RC init(const char *name, const FieldMeta &field);
+  // RC init(const char *name, const FieldMeta &field);
   RC init_multi_index(const char* name, const std::vector<const FieldMeta*>& field_metas);
 public:
   const char *name() const;
-  const char *field() const;
   std::vector<FieldMeta> field_metas() const;
   std::vector<std::string> fields() const; //返回索引项的名称
   std::vector<AttrType> fields_type() const; //返回索引项的类型
@@ -54,7 +53,7 @@ public:
 
 protected:
   std::string name_;   // index's name
-  std::string field_;  // field's name
+  //std::string field_;  // field's name
   std::vector<FieldMeta> field_metas_; // used for multi-index;
   std::vector<std::string> fields_;
   std::vector<AttrType> fields_type_;

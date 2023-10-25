@@ -322,7 +322,7 @@ TEST(test_bplus_tree, test_leaf_index_node_handle)
   index_file_header.key_length = 4 + sizeof(RID);
   index_file_header.attr_lengths[0] = 4;
   index_file_header.attr_types[0] = INTS;
-
+  index_file_header.attr_num = 1;
   Frame frame;
 
   KeyComparator key_comparator;
@@ -330,7 +330,7 @@ TEST(test_bplus_tree, test_leaf_index_node_handle)
   std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths;
   attr_types[0] = AttrType::INTS;
   attr_lengths[0] = 4;
-  key_comparator.init(attr_types, attr_lengths);
+  key_comparator.init(index_file_header.attr_types, index_file_header.attr_lengths, index_file_header.attr_num);
 
   LeafIndexNodeHandler leaf_node(index_file_header, &frame);
   leaf_node.init_empty();
@@ -384,7 +384,7 @@ TEST(test_bplus_tree, test_internal_index_node_handle)
   index_file_header.key_length = 4 + sizeof(RID);
   index_file_header.attr_lengths[0] = 4;
   index_file_header.attr_types[0] = INTS;
-
+  index_file_header.attr_num = 1;
 
   Frame frame;
 
@@ -393,7 +393,7 @@ TEST(test_bplus_tree, test_internal_index_node_handle)
   std::array<int,MAX_MULTI_INDEX_NUM> attr_lengths;
   attr_types[0] = AttrType::INTS;
   attr_lengths[0] = 4;
-  key_comparator.init(attr_types, attr_lengths);
+  key_comparator.init(attr_types, attr_lengths, index_file_header.attr_num);
 
   InternalIndexNodeHandler internal_node(index_file_header, &frame);
   internal_node.init_empty();

@@ -229,7 +229,22 @@ void LeafIndexNodeHandler::remove(int index)
 int LeafIndexNodeHandler::remove(const char *key, const KeyComparator &comparator)
 {
   bool found = false;
+  int remove_count = 0;
+  //???
+  // while (true)
+  // {
+  //   int index = lookup(comparator, key, &found);
+  //   if(found){
+  //     this->remove(index);
+  //     remove_count++;
+  //   }
+  //   else {
+  //     break;
+  //   }
+  // }
+  // return remove_count;
   int index = lookup(comparator, key, &found);
+
   if (found) {
     this->remove(index);
     return 1;
@@ -807,7 +822,7 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &
     LOG_WARN("Now miniob support %d multiindex, however %d are given",MAX_MULTI_INDEX_NUM,attr_types.size());
     return RC::INTERNAL;
   }
-  for(int i = 1; i < attr_lengths.size(); i++){
+  for(int i = 0; i < attr_lengths.size(); i++){
      file_header->attr_lengths[i] = attr_lengths[i];
      file_header->attr_types[i] = attr_types[i];
   }
@@ -828,7 +843,7 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &
   }
 
   key_comparator_.init(file_header->attr_types, file_header->attr_lengths, file_header->attr_num);
-  key_printer_.init(file_header->attr_types, file_header->attr_lengths);
+  key_printer_.init(file_header->attr_types, file_header->attr_lengths, file_header->attr_num);
 
   this->sync();
 
@@ -874,8 +889,8 @@ RC BplusTreeHandler::open(const char *file_name)
   // close old page_handle
   disk_buffer_pool->unpin_page(frame);
 
-  key_comparator_.init(file_header_.attr_types, file_header_.attr_lengths);
-  key_printer_.init(file_header_.attr_types, file_header_.attr_lengths);
+  key_comparator_.init(file_header_.attr_types, file_header_.attr_lengths, file_header_.attr_num);
+  key_printer_.init(file_header_.attr_types, file_header_.attr_lengths, file_header_.attr_num);
   LOG_INFO("Successfully open index %s", file_name);
   return RC::SUCCESS;
 }

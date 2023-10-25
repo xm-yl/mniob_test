@@ -22,18 +22,25 @@ See the Mulan PSL v2 for more details. */
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_FIELD_NAME("field_name");
 
-//TODO ready to delete this function.
-RC IndexMeta::init(const char *name, const FieldMeta &field)
-{
-  if (common::is_blank(name)) {
-    LOG_ERROR("Failed to init index, name is empty.");
-    return RC::INVALID_ARGUMENT;
+static void string_split(std::string str, const char split, std::vector<std::string>& res){
+  std::istringstream iss(str);
+  std::string token;
+  while(getline(iss, token, split)){
+    res.push_back(token);
   }
-
-  name_ = name;
-  field_ = field.name();
-  return RC::SUCCESS;
 }
+//TODO ready to delete this function.
+// RC IndexMeta::init(const char *name, const FieldMeta &field)
+// {
+//   if (common::is_blank(name)) {
+//     LOG_ERROR("Failed to init index, name is empty.");
+//     return RC::INVALID_ARGUMENT;
+//   }
+
+//   name_ = name;
+//   field_ = field.name();
+//   return RC::SUCCESS;
+// }
 RC IndexMeta::init_multi_index(const char* name, const std::vector<const FieldMeta*> & field_metas){
   if (common::is_blank(name)) {
     LOG_ERROR("Failed to init index, name is empty.");
@@ -52,6 +59,14 @@ RC IndexMeta::init_multi_index(const char* name, const std::vector<const FieldMe
 void IndexMeta::to_json(Json::Value &json_value) const
 {
   json_value[FIELD_NAME] = name_;
+  std::string field_;
+  //记录多个field，在一个的时候和扩展前情况相同，更多的field_name用，隔开
+  for(int i = 0; i < field_metas_.size(); i++){
+    field_ += field_metas_.at(i).name();
+    if(i != field_metas_.size() - 1){
+      field_ += ",";
+    }
+  }
   json_value[FIELD_FIELD_NAME] = field_;
 }
 
@@ -70,14 +85,20 @@ RC IndexMeta::from_json(const TableMeta &table, const Json::Value &json_value, I
         field_value.toStyledString().c_str());
     return RC::INTERNAL;
   }
-
-  const FieldMeta *field = table.field(field_value.asCString());
-  if (nullptr == field) {
+  std::string field_names = field_value.asCString();
+  std::vector<std::string> field_name_list; 
+  string_split(field_names, ',', field_name_list);
+  std::vector<const FieldMeta*> field_metas;
+  for(int i = 0; i < field_name_list.size(); i++){
+    const FieldMeta *field = table.field(field_name_list[i].c_str());
+    if (nullptr == field) {
     LOG_ERROR("Deserialize index [%s]: no such field: %s", name_value.asCString(), field_value.asCString());
     return RC::SCHEMA_FIELD_MISSING;
+    }
+    field_metas.push_back(field);
   }
-
-  return index.init(name_value.asCString(), *field);
+  return index.init_multi_index(name_value.asCString(),field_metas);
+  //return index.init(name_value.asCString(), *field);
 }
 
 const char *IndexMeta::name() const
@@ -85,14 +106,16 @@ const char *IndexMeta::name() const
   return name_.c_str();
 }
 
-const char *IndexMeta::field() const
-{
-  return field_.c_str();
-}
-
 void IndexMeta::desc(std::ostream &os) const
 {
-  os << "index name=" << name_ << ", field=" << field_;
+  os << "index name=" << name_ ;
+  os << ", fields=";
+  for(int i = 0; i < field_metas_.size(); i++){
+    os << field_metas_[i].name();
+    if(i!= field_metas_.size()-1){
+      os << ", ";
+    }
+  }
 }
 
 std::vector<FieldMeta> IndexMeta::field_metas() const {
