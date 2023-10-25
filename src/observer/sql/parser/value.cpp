@@ -162,6 +162,7 @@ void Value::set_date(const char* s) {
   //if(!b) return -1;
   int dv = y*10000+m*100+d;
   this->num_value_.date_value_ = dv;
+  this->length_ = 4; // ADD for length
 }
 
 void Value::set_date(int s) {
