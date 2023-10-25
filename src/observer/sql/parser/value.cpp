@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include <sstream>
+#include <cctype>
 #include "sql/parser/value.h"
 #include "storage/field/field.h"
 #include "common/log/log.h"
@@ -214,6 +215,37 @@ std::string Value::to_string() const
   return os.str();
 }
 
+float parse_float(const char* c, int len) {
+  int max_dot_cnt = 1, end_pos = -1, dot_pos = -1;
+  for(int i = 0;i < len; i++) {
+    if(!std::isdigit(c[i])) {
+      if(c[i] == '.' && max_dot_cnt > 0) {
+        max_dot_cnt --;
+        dot_pos = i;
+      } else {
+        break;
+      }
+    }
+    end_pos = i;
+  }
+
+  float res = 0.0;
+  for(int i = 0; i <= end_pos; i++) {
+    if(c[i] == '.') continue;
+    res = res * 10 + c[i] - '0';
+  }
+
+  if(dot_pos == -1 || dot_pos >= end_pos) {
+    return res;
+  }
+
+  for (int i = 1; i <= end_pos - dot_pos; i++) {
+    res /= 10.0;
+  }
+  return res;
+}
+
+
 int Value::compare(const Value &other) const
 {
   if (this->attr_type_ == other.attr_type_) {
@@ -246,6 +278,28 @@ int Value::compare(const Value &other) const
   } else if (this->attr_type_ == FLOATS && other.attr_type_ == INTS) {
     float other_data = other.num_value_.int_value_;
     return common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data);
+  } else if (this->attr_type_ == FLOATS && other.attr_type_ == CHARS) {
+  
+    float d = parse_float(other.str_value_.c_str(), other.str_value_.length());
+    return common::compare_float((void*)&this->num_value_.float_value_, (void *)&d);
+  
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == FLOATS) {
+
+    float d = parse_float(this->str_value_.c_str(), this->str_value_.length()); 
+    return common::compare_float((void*)&d, (void*)&other.num_value_.float_value_);
+  
+  } else if (this->attr_type_ == INTS && other.attr_type_ == CHARS) {
+  
+    float d = parse_float(other.str_value_.c_str(), other.str_value_.length());
+    float i = this->num_value_.int_value_;
+    return common::compare_float((void*)&i, (void *)&d);
+  
+  } else if (this->attr_type_ == CHARS && other.attr_type_ == INTS) {
+
+    float d = parse_float(this->str_value_.c_str(), this->str_value_.length());
+    float i = other.num_value_.int_value_;
+    return common::compare_float((void*)&d, (void*)&i); 
+  
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?

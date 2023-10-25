@@ -17,6 +17,13 @@ See the Mulan PSL v2 for more details. */
 #include "storage/record/record.h"
 #include "storage/table/table.h"
 
+void ProjectPhysicalOperator::debug_print_cnt_info_with_depth(int dep) {
+  LOG_DEBUG("[ProjectPhysicalOperator] depth:%d counts:%d", dep, this->debug_cnt);
+  for(int i = 0; i < this->children_.size(); i++) {
+    this->children_[i]->debug_print_cnt_info_with_depth(dep+1);
+  }
+}
+
 RC ProjectPhysicalOperator::open(Trx *trx)
 {
   if (children_.empty()) {
@@ -38,6 +45,7 @@ RC ProjectPhysicalOperator::next()
   if (children_.empty()) {
     return RC::RECORD_EOF;
   }
+  this->debug_cnt++;
   return children_[0]->next();
 }
 

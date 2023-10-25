@@ -42,6 +42,7 @@ public:
   RC open(Trx *trx) override;
   RC next() override;
   RC close() override;
+  void debug_print_cnt_info_with_depth(int dep) override;
 
   int cell_num() const
   {

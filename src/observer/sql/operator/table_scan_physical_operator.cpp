@@ -18,6 +18,10 @@ See the Mulan PSL v2 for more details. */
 
 using namespace std;
 
+void TableScanPhysicalOperator::debug_print_cnt_info_with_depth(int dep) {
+  LOG_DEBUG("[TableScanPhysicalOperator] depth:%d counts:%d", dep, this->debug_cnt);
+}
+
 RC TableScanPhysicalOperator::open(Trx *trx)
 {
   RC rc = table_->get_record_scanner(record_scanner_, trx, readonly_);
@@ -30,10 +34,11 @@ RC TableScanPhysicalOperator::open(Trx *trx)
 
 RC TableScanPhysicalOperator::next()
 {
+
   if (!record_scanner_.has_next()) {
     return RC::RECORD_EOF;
   }
-
+  this->debug_cnt++;
   RC rc = RC::SUCCESS;
   bool filter_result = false;
   while (record_scanner_.has_next()) {

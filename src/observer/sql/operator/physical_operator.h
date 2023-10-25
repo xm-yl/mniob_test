@@ -57,7 +57,9 @@ enum class PhysicalOperatorType
 class PhysicalOperator
 {
 public:
-  PhysicalOperator() = default;
+  PhysicalOperator() {
+    this->debug_cnt = 0;
+  }
 
   virtual ~PhysicalOperator();
 
@@ -72,6 +74,13 @@ public:
   virtual RC open(Trx *trx) = 0;
   virtual RC next() = 0;
   virtual RC close() = 0;
+  virtual void debug_print_cnt_info_with_depth(int dep){
+    LOG_DEBUG("[physicaloperator] depth:%d counts:%d", dep, this->debug_cnt);
+    for(int i = 0; i < this->children_.size(); i++) {
+      this->children_[i]->debug_print_cnt_info_with_depth(dep+1);
+    }
+
+  };
 
   virtual Tuple *current_tuple() = 0;
 
@@ -87,4 +96,5 @@ public:
 
 protected:
   std::vector<std::unique_ptr<PhysicalOperator>> children_;
+  int debug_cnt;
 };
