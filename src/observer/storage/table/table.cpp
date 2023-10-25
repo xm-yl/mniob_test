@@ -386,7 +386,7 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
   return rc;
 }
 
-RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_metas, const char *index_name)
+RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_metas, const char *index_name, bool is_unique)
 {
   //检查参数是否合法
   RC rc = RC::SUCCESS;
@@ -409,7 +409,7 @@ RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_meta
 
   IndexMeta new_index_meta;
   // RC rc = new_index_meta.init(index_name, *field_meta);
-  rc = new_index_meta.init_multi_index(index_name, field_metas);
+  rc = new_index_meta.init_multi_index(index_name, field_metas, is_unique);
   if (rc != RC::SUCCESS) {
     LOG_INFO("Failed to init IndexMeta in table:%s, index_name:%s, field_name:%s", 
              name(), index_name, field_metas[0]->name());
