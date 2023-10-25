@@ -21,11 +21,11 @@ See the Mulan PSL v2 for more details. */
 
 
 UpdateStmt::UpdateStmt(Table *table, 
-                      Value *values, 
+                      std::vector<const Value *> update_values, 
                       int value_amount, 
-                      const std::string& update_attribute,
+                      std::vector<const FieldMeta*> update_fields ,
                       FilterStmt* filter_stmt)
-    :table_(table), values_(values), value_amount_(value_amount), update_attribute_(update_attribute),filter_stmt_(filter_stmt)
+    :table_(table), update_values_(update_values), value_amount_(value_amount), update_fields_(update_fields),filter_stmt_(filter_stmt)
 {}
 
 RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
@@ -45,29 +45,45 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
   //get update_attribute and check validate
-  std::string update_attribute = update.attribute_name;
-  AttrType value_type = update.value.attr_type();
-  const TableMeta &table_meta = table->table_meta();
-  const int sys_field_num = table_meta.sys_field_num();
-  const int field_num = table_meta.field_num() - sys_field_num;
-  int update_location = 0;
-  for(update_location; update_location<field_num;update_location++){
-    const FieldMeta *field_meta = table_meta.field(update_location + sys_field_num);
-    AttrType field_type = field_meta->type();
-    const char * field_name = field_meta->name();
-    //field_name 和 type 都要一致 才算合法的update。
-    if(strcmp(field_name,update_attribute.c_str())==0 && field_type==value_type){
-        break;
-      }
+  std::vector<const FieldMeta*> update_fields;
+  //std::vector<AttrType> update_value_types;
+  std::vector<const Value*> update_values;
+  std::vector<std::string> update_attribute = update.attribute_name;
+  for(int i = 0; i < update.attribute_name.size(); i++){
+    const FieldMeta *meta = table->table_meta().field(update.attribute_name.at(i).c_str());
+    if(nullptr == meta){
+      return RC::SCHEMA_FIELD_NOT_EXIST;
+    }
+    if(meta->type() != update.value.at(i).attr_type()){
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+    update_fields.push_back(meta);
+    //update_value_types.push_back(update.value.at(i).attr_type());
+    update_values.push_back(&update.value.at(i));
+
   }
-  if(update_location==field_num){
-    LOG_WARN("field name or type mismatch");
-    return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-  }
+  // AttrType value_type = update.value.attr_type();
+  // const TableMeta &table_meta = table->table_meta();
+  // const int sys_field_num = table_meta.sys_field_num();
+  // const int field_num = table_meta.field_num() - sys_field_num;
+  // int update_location = 0;
+  // for(update_location; update_location<field_num;update_location++){
+  //   const FieldMeta *field_meta = table_meta.field(update_location + sys_field_num);
+  //   AttrType field_type = field_meta->type();
+  //   const char * field_name = field_meta->name();
+  //   //field_name 和 type 都要一致 才算合法的update。
+  //   if(strcmp(field_name,update_attribute.c_str())==0 && field_type==value_type){
+  //       break;
+  //     }
+  // }
+  // if(update_location==field_num){
+  //   LOG_WARN("field name or type mismatch");
+  //   return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  // }
 
 
   //get values
-  Value* value = const_cast<Value*>(&update.value);
+  // Value* value = const_cast<Value*>(&update.value);
   
   //get filter_stmt
   std::unordered_map<std::string, Table *> table_map;
@@ -79,6 +95,6 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;
   }
-  stmt = new UpdateStmt(table,value,1,update_attribute,filter_stmt);
+  stmt = new UpdateStmt(table,update_values,update_values.size(),update_fields,filter_stmt);
   return RC::SUCCESS;
 }

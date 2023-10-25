@@ -154,6 +154,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
+%type <condition_list>      update_exprs
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_aggr_attr
 %type <condition_list>      on_condition_exprs
@@ -518,19 +519,50 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       free($3);
     }
     ;
+update_exprs: 
+  /*empty*/{
+    $$ = nullptr;
+  }
+  | COMMA ID EQ value update_exprs{
+    if($5 == nullptr){
+      $$ = new std::vector<ConditionSqlNode>;
+    }
+    else {
+      $$ = $5;
+    }
+    ConditionSqlNode* expr = new ConditionSqlNode();
+    expr->left_is_attr = 1;
+    expr->left_attr.attribute_name = $2;
+    expr->right_is_attr = 0;
+    expr->right_value = *$4;
+    expr->comp = EQUAL_TO;
+    $$->push_back(*expr);
+    delete expr;
+    free($2);
+    delete $4;
+  }
+  ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET ID EQ value update_exprs where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.attribute_name.push_back($4);
+      $$->update.value.push_back(*$6);
+      delete $6;
+      if ($8 != nullptr) {
+        $$->update.conditions.swap(*$8);
+        delete $8;
       }
       free($2);
       free($4);
+      if ($7 != nullptr){
+        for(int i=0; i < (int)$7->size(); i++){
+          $$->update.attribute_name.push_back($7->at(i).left_attr.attribute_name);
+          $$->update.value.push_back($7->at(i).right_value);
+        }
+        delete $7;
+      }
     }
     ;
 

@@ -228,8 +228,8 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique
   
   //get data from logical oper
   Table *table = update_oper.table();
-  Value *value = update_oper.value();
-  std::string update_attribute = update_oper.update_attribute();
+  std::vector<const Value *>update_values = update_oper.update_values();
+  std::vector<const FieldMeta*> update_fields = update_oper.update_fields();
   RC rc = RC::SUCCESS;
   if (!child_opers.empty()) {
     LogicalOperator *child_oper = child_opers.front().get();
@@ -239,7 +239,7 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique
       return rc;
     }
   }
-  oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(table,value,update_attribute));
+  oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(table,update_values,update_fields));
    if (child_physical_oper) {
     oper->add_child(std::move(child_physical_oper));
   }
