@@ -39,6 +39,7 @@ RC SqlResult::open()
 
 RC SqlResult::close()
 {
+  operator_->debug_print_cnt_info_with_depth(0);
   if (nullptr == operator_) {
     return RC::INVALID_ARGUMENT;
   }

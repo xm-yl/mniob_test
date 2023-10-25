@@ -66,6 +66,9 @@ public:
   {
     return filter_stmt_;
   }
+  const std::vector<FilterStmt* > &on_conditions() const {
+    return this->on_conditions_;
+  }
 
 private:
   std::vector<Field> query_fields_;
@@ -73,4 +76,5 @@ private:
   FilterStmt *filter_stmt_ = nullptr;
   // std::vector<std::string> aggr_fields_;
   // std::vector<AggrOp> aggr_ops_;
+  std::vector<FilterStmt *> on_conditions_;
 };

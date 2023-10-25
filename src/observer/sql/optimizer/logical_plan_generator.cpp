@@ -85,8 +85,10 @@ RC LogicalPlanGenerator::create_plan(CalcStmt *calc_stmt, std::unique_ptr<Logica
 RC LogicalPlanGenerator::create_plan(
     SelectStmt *select_stmt, unique_ptr<LogicalOperator> &logical_operator)
 {
-  unique_ptr<LogicalOperator> table_oper(nullptr);
 
+  //table get operator
+  unique_ptr<LogicalOperator> table_oper(nullptr);
+  int now_join_index = 0;
   const std::vector<Table *> &tables = select_stmt->tables();
   const std::vector<Field> &all_fields = select_stmt->query_fields();
   //遍历要from的表
@@ -101,15 +103,34 @@ RC LogicalPlanGenerator::create_plan(
     //若有多个表的话就构建出join连接的树
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true/*readonly*/));
     if (table_oper == nullptr) {
+      //single table only
       table_oper = std::move(table_get_oper);
     } else {
-      JoinLogicalOperator *join_oper = new JoinLogicalOperator;
+      //multiple tables
+      unique_ptr<LogicalOperator> join_oper(new JoinLogicalOperator);
+
       join_oper->add_child(std::move(table_oper));
       join_oper->add_child(std::move(table_get_oper));
-      table_oper = unique_ptr<LogicalOperator>(join_oper);
+
+      //on conditions to filter
+      FilterStmt* on_condition = select_stmt->on_conditions()[now_join_index];
+      if (on_condition != nullptr) {
+        unique_ptr<LogicalOperator> predicate_oper;
+        RC rc = create_plan(on_condition, predicate_oper);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("failed to create predicate logical plan. rc=%s", strrc(rc));
+          return rc;
+        }
+        predicate_oper->add_child(std::move(join_oper));
+        table_oper = std::move(predicate_oper);
+      } else {
+        table_oper = std::move(join_oper);
+      }
+      now_join_index++;
     }
   }
 
+  //predicate operator
   unique_ptr<LogicalOperator> predicate_oper;
   RC rc = create_plan(select_stmt->filter_stmt(), predicate_oper);
   if (rc != RC::SUCCESS) {
@@ -117,6 +138,7 @@ RC LogicalPlanGenerator::create_plan(
     return rc;
   }
 
+  //project operator
   unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(all_fields));
   if (predicate_oper) {
     if (table_oper) {

@@ -17,6 +17,13 @@ See the Mulan PSL v2 for more details. */
 NestedLoopJoinPhysicalOperator::NestedLoopJoinPhysicalOperator()
 {}
 
+void NestedLoopJoinPhysicalOperator::debug_print_cnt_info_with_depth(int dep) {
+  LOG_DEBUG("JOIN operator depth:%d counts:%d", dep, this->debug_cnt);
+  for(int i = 0; i < this->children_.size(); i++) {
+    this->children_[i]->debug_print_cnt_info_with_depth(dep+1);
+  }
+}
+
 RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
 {
   if (children_.size() != 2) {
@@ -37,6 +44,7 @@ RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
 
 RC NestedLoopJoinPhysicalOperator::next()
 {
+  this->debug_cnt++;
   bool left_need_step = (left_tuple_ == nullptr);
   RC rc = RC::SUCCESS;
   if (round_done_) {
