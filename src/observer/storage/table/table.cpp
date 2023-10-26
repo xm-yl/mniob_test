@@ -537,7 +537,7 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
     
     // TODO flexible length
     char *tmp = new char[update_field_length];
-    memset(tmp, 0, sizeof(tmp));
+    memset(tmp, 0, sizeof(char) * update_field_length);
     memcpy(tmp, update_values.at(i)->data(), min(update_field_length, update_values.at(i)->length()));
     // LOG_DEBUG("field_length is %d,Update location is %d",update_field_length,update_location);
     memcpy(r + update_location, tmp, update_field_length);
