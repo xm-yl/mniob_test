@@ -27,7 +27,7 @@ class UpdateStmt : public Stmt
 {
 public:
   UpdateStmt() = default;
-  UpdateStmt(Table *table, Value *values, int value_amount, const std::string& attribute_name,FilterStmt* filter_stmt);
+  UpdateStmt(Table *table, std::vector<const Value *> values, int value_amount, std::vector<const FieldMeta*> update_fields,FilterStmt* filter_stmt);
   
 public:
   static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
@@ -41,24 +41,24 @@ public:
   {
     return table_;
   }
-  Value *values() const
+  std::vector<const Value *>update_values() const
   {
-    return values_;
+    return update_values_;
   }
   int value_amount() const
   {
     return value_amount_;
   }
-  std::string update_attribute() const{
-    return update_attribute_;
+  std::vector<const FieldMeta*> update_fields() const{
+    return update_fields_;
   }
   FilterStmt* filter_stmt() const{
     return filter_stmt_;
   }
 private:
   Table *table_ = nullptr;
-  Value *values_ = nullptr;
+  std::vector<const Value *>update_values_;
   int value_amount_ = 0;
-  std::string update_attribute_ = std::string();
+  std::vector<const FieldMeta*> update_fields_;
   FilterStmt* filter_stmt_ = nullptr;
 };

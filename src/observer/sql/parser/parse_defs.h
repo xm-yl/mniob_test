@@ -53,6 +53,11 @@ struct RelAttrSqlNode
   }
 };
 
+enum JoinType {
+  JOIN_TABLE,
+  INNER_JOIN_TABLE,
+};
+
 /**
  * @brief 描述比较运算符
  * @ingroup SQLParser
@@ -112,6 +117,7 @@ struct SelectSqlNode
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
+  std::vector<std::vector<ConditionSqlNode>>   on_conditions;
   bool validate() {
     for (size_t i = 0;i < conditions.size(); i++) {
       if(conditions[i].validate() == false) {
@@ -177,13 +183,15 @@ struct DeleteSqlNode
 struct UpdateSqlNode
 {
   std::string                   relation_name;         ///< Relation to update
-  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-  Value                         value;                 ///< 更新的值，仅支持一个字段
+  std::vector<std::string>      attribute_name;        ///< 更新的字段，仅支持一个字段
+  std::vector<Value>            value;                 ///< 更新的值，仅支持一个字段
   std::vector<ConditionSqlNode> conditions;
 
   bool validate() {
-    if (value.validate() == false) {
-      return false;
+    for(Value& a:value){
+      if (a.validate() == false) {
+        return false;
+      }
     }
 
     for (size_t i = 0;i < conditions.size(); i++) {
@@ -386,4 +394,16 @@ public:
 
 private:
   std::vector<std::unique_ptr<ParsedSqlNode>> sql_nodes_;  ///< 这里记录SQL命令。虽然看起来支持多个，但是当前仅处理一个
+};
+
+struct JoinTableSqlNode {
+  std::string table_name;
+  std::vector<ConditionSqlNode> on_conditions;
+  //JoinTableSqlNode(JoinTableSqlNode &j) {
+    //table_name = j.table_name;
+    //on_conditions.swap(j.on_conditions);
+  //}
+  //JoinTableSqlNode() {
+
+  //}
 };

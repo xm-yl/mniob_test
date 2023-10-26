@@ -49,6 +49,8 @@ public:
   void set_aggregate(){
     is_aggregate = true;
   }
+  void debug_print_cnt_info_with_depth(int dep) override;
+
   int cell_num() const
   {
     return tuple_.cell_num();

@@ -23,6 +23,14 @@ PredicatePhysicalOperator::PredicatePhysicalOperator(std::unique_ptr<Expression>
   ASSERT(expression_->value_type() == BOOLEANS, "predicate's expression should be BOOLEAN type");
 }
 
+void PredicatePhysicalOperator::debug_print_cnt_info_with_depth(int dep) {
+  LOG_DEBUG("[PredicatePysicalOperator] depth:%d counts:%d", dep, this->debug_cnt);
+  for(int i = 0; i < this->children_.size(); i++) {
+    this->children_[i]->debug_print_cnt_info_with_depth(dep+1);
+  }
+}
+
+
 RC PredicatePhysicalOperator::open(Trx *trx)
 {
   if (children_.size() != 1) {
@@ -35,6 +43,7 @@ RC PredicatePhysicalOperator::open(Trx *trx)
 
 RC PredicatePhysicalOperator::next()
 {
+  this->debug_cnt++;
   RC rc = RC::SUCCESS;
   PhysicalOperator *oper = children_.front().get();
 

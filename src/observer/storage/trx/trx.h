@@ -146,7 +146,7 @@ public:
 
   virtual RC insert_record(Table *table, Record &record) = 0;
   virtual RC delete_record(Table *table, Record &record) = 0;
-  virtual RC update_record(Table *table, Record &record, Value* value, std::string update_attribute) = 0;
+  virtual RC update_record(Table *table, Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields) = 0;
 
   virtual RC visit_record(Table *table, Record &record, bool readonly) = 0;
 

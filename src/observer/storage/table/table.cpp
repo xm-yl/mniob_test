@@ -496,45 +496,53 @@ RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_meta
   return rc;
 }
 
-RC Table::update_record(Record &record, Value* value, std::string update_attribute){
+RC Table::update_record(Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields){
   RC rc = RC::SUCCESS;
   char * r = record.data();
-
-  AttrType value_type = value->attr_type();
-  const int sys_field_num = table_meta_.sys_field_num();
-  const int field_num = table_meta_.field_num() - sys_field_num;
-  int update_location = 0;
-  int update_field_length = 0;
-  for(int i = 0; i < field_num;i++){
-    const FieldMeta *field_meta = table_meta_.field(i + sys_field_num);
-    AttrType field_type = field_meta->type();
-    const char * field_name = field_meta->name();
-    //field_name 和 type 都要一致 才算合法的update。
-    if(strcmp(field_name,update_attribute.c_str())==0 && field_type==value_type){
-        update_field_length = field_meta->len();
-        break;
-      }
-    update_location += field_meta->len();
-  }
+  std::shared_ptr<Record> old_record = std::make_shared<Record>(record);
   //delete index_entry
   for (Index *index : indexes_) {
     rc = index->delete_entry(record.data(), &record.rid());
     ASSERT(RC::SUCCESS == rc, 
-           "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+          "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+          name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
-  
-  // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
-  
-  // TODO flexible length
-  Record* old_record = new Record(record);
-  char *tmp = new char[update_field_length];
-  memset(tmp, 0, sizeof(tmp));
-  memcpy(tmp, value->data(), min(update_field_length, value->length()));
-  // LOG_DEBUG("field_length is %d,Update location is %d",update_field_length,update_location);
-  memcpy(r + update_location, tmp, update_field_length);
-  delete []tmp;
-
+  const int sys_field_num = table_meta_.sys_field_num();
+  const int field_num = table_meta_.field_num() - sys_field_num;
+  for(int i = 0; i < update_fields.size(); i++ ){
+    AttrType update_value_type = update_values.at(i)->attr_type();
+    const FieldMeta *update_field_meta = update_fields.at(i);
+    int update_location = 0;
+    int update_field_length = 0;
+    for(int j = 0; j < field_num;j++){
+      const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
+      AttrType field_type = field_meta->type();
+      const char * field_name = field_meta->name();
+      //field_name 和 type 都要一致 才算合法的update。
+      if(strcmp(field_name,update_field_meta->name())==0 && field_type==update_value_type){
+          update_field_length = field_meta->len();
+          break;
+      }
+      update_location += field_meta->len();
+    }
+    // //delete index_entry
+    // for (Index *index : indexes_) {
+    //   rc = index->delete_entry(record.data(), &record.rid());
+    //   ASSERT(RC::SUCCESS == rc, 
+    //         "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+    //         name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+    // }
+    
+    // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
+    
+    // TODO flexible length
+    char *tmp = new char[update_field_length];
+    memset(tmp, 0, sizeof(char) * update_field_length);
+    memcpy(tmp, update_values.at(i)->data(), min(update_field_length, update_values.at(i)->length()));
+    // LOG_DEBUG("field_length is %d,Update location is %d",update_field_length,update_location);
+    memcpy(r + update_location, tmp, update_field_length);
+    delete []tmp;
+  }
   //insert index_entry
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) { // 可能出现了键值重复

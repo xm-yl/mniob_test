@@ -37,6 +37,7 @@ public:
   RC next() override;
   RC close() override;
   Tuple *current_tuple() override;
+  void debug_print_cnt_info_with_depth(int dep) override;
 
 private:
   RC left_next();   //! 左表遍历下一条数据

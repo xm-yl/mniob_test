@@ -84,6 +84,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INTO
         VALUES
         FROM
+        INNER
+        JOIN
         WHERE
         AND
         SET
@@ -113,16 +115,19 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   Value *                           value;
   enum CompOp                       comp;
   enum AggrOp                       aggr_op;
+  enum JoinType                     join_type;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
+  JoinTableSqlNode *                join_table;
   std::vector<Expression *> *       expression_list;
   std::vector<Value> *              value_list;
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::vector<std::string> *        index_list;
+  std::vector<JoinTableSqlNode> *   join_table_list;
   char *                            string;
   int                               number;
   float                             floats;
@@ -142,14 +147,17 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <number>              number
 %type <comp>                comp_op
 %type <aggr_op>             aggr_op
+%type <join_type>           join_expr
 %type <rel_attr>            rel_attr
 %type <rel_attr>            aggr_func
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
+%type <condition_list>      update_exprs
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_aggr_attr
+%type <condition_list>      on_condition_exprs
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
 %type <index_list>          ind_list
@@ -157,6 +165,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <rel_attr_list>       aggr_func_list
 %type <expression>          expression
 %type <expression_list>     expression_list
+%type <join_table>          join_table
+%type <join_table_list>     join_tables
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -430,7 +440,73 @@ value:
       free(tmp);
     }
     ;
-    
+
+join_expr:
+  JOIN
+  {
+    $$ = JOIN_TABLE;
+
+  }
+  | INNER JOIN
+  {
+    $$ = INNER_JOIN_TABLE;
+  }
+  ;
+
+on_condition_exprs:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | condition
+  {
+    $$ = new std::vector<ConditionSqlNode>;
+    $$->emplace_back(*$1);
+    delete $1;
+  }
+  | condition AND condition_list {
+    $$ = $3;
+    $$->emplace_back(*$1);
+    delete $1;
+  }
+  ;
+
+join_table:
+  join_expr ID ON on_condition_exprs
+  {
+    $$ = new JoinTableSqlNode;
+    $$->table_name = $2;
+    free($2);
+
+    if ($4 != nullptr) {
+      $$->on_conditions = *$4;
+    }
+    delete $4;
+  }
+  | join_expr ID 
+  {
+    $$ = new JoinTableSqlNode;
+    $$->table_name = $2;
+    free($2);
+  }
+
+join_tables:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | join_table join_tables 
+    { 
+      if ($2 == nullptr) {
+        $$ = new std::vector<JoinTableSqlNode>;
+      } else {
+        $$ = $2;
+      }
+
+      $$->push_back(*$1);
+      delete $1;
+    }
+    ;
 delete_stmt:    /*  delete 语句的语法解析树*/
     DELETE FROM ID where 
     {
@@ -443,21 +519,53 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       free($3);
     }
     ;
+update_exprs: 
+  /*empty*/{
+    $$ = nullptr;
+  }
+  | COMMA ID EQ value update_exprs{
+    if($5 == nullptr){
+      $$ = new std::vector<ConditionSqlNode>;
+    }
+    else {
+      $$ = $5;
+    }
+    ConditionSqlNode* expr = new ConditionSqlNode();
+    expr->left_is_attr = 1;
+    expr->left_attr.attribute_name = $2;
+    expr->right_is_attr = 0;
+    expr->right_value = *$4;
+    expr->comp = EQUAL_TO;
+    $$->push_back(*expr);
+    delete expr;
+    free($2);
+    delete $4;
+  }
+  ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET ID EQ value update_exprs where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.attribute_name.push_back($4);
+      $$->update.value.push_back(*$6);
+      delete $6;
+      if ($8 != nullptr) {
+        $$->update.conditions.swap(*$8);
+        delete $8;
       }
       free($2);
       free($4);
+      if ($7 != nullptr){
+        for(int i=0; i < (int)$7->size(); i++){
+          $$->update.attribute_name.push_back($7->at(i).left_attr.attribute_name);
+          $$->update.value.push_back($7->at(i).right_value);
+        }
+        delete $7;
+      }
     }
     ;
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_aggr_attr FROM ID rel_list where
     {
@@ -487,6 +595,11 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($5 != nullptr) {
+        /* join with COMMA represents empty on condition */
+        for (int i = 0;i < (int)$5->size(); i++) {
+          $$->selection.on_conditions.push_back(vector<ConditionSqlNode>());
+        }
+
         $$->selection.relations.swap(*$5);
         delete $5;
       }
@@ -496,6 +609,35 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($6 != nullptr) {
         $$->selection.conditions.swap(*$6);
         delete $6;
+      }
+      free($4);
+    }
+    | SELECT select_attr FROM ID join_table join_tables where
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.attributes.swap(*$2);
+        delete $2;
+      }
+      $$->selection.relations.push_back($4);
+      
+      if ($6 != nullptr) {
+        int i = 0;
+        for(i = 0; i < (int)$6->size(); i++) {
+          $$->selection.relations.push_back((*$6)[i].table_name);
+          $$->selection.on_conditions.push_back((*$6)[i].on_conditions);
+        }
+        delete $6;
+      }
+      $$->selection.relations.push_back($5->table_name);
+      $$->selection.on_conditions.push_back($5->on_conditions);
+      std::reverse($$->selection.relations.begin() + 1, $$->selection.relations.end());
+      std::reverse($$->selection.on_conditions.begin(), $$->selection.on_conditions.end());
+      delete $5;
+
+      if ($7 != nullptr) {
+        $$->selection.conditions.swap(*$7);
+        delete $7;
       }
       free($4);
     }
