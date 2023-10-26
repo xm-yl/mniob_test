@@ -507,18 +507,19 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
           "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
+  const int sys_field_num = table_meta_.sys_field_num();
+  const int field_num = table_meta_.field_num() - sys_field_num;
   for(int i = 0; i < update_fields.size(); i++ ){
-    AttrType value_type = update_values.at(i)->attr_type();
-    const int sys_field_num = table_meta_.sys_field_num();
-    const int field_num = table_meta_.field_num() - sys_field_num;
+    AttrType update_value_type = update_values.at(i)->attr_type();
+    const FieldMeta *update_field_meta = update_fields.at(i);
     int update_location = 0;
     int update_field_length = 0;
-    for(int i = 0; i < field_num;i++){
-      const FieldMeta *field_meta = update_fields.at(i);
+    for(int j = 0; j < field_num;j++){
+      const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
       AttrType field_type = field_meta->type();
       const char * field_name = field_meta->name();
       //field_name 和 type 都要一致 才算合法的update。
-      if(strcmp(field_name,field_meta->name())==0 && field_type==value_type){
+      if(strcmp(field_name,update_field_meta->name())==0 && field_type==update_value_type){
           update_field_length = field_meta->len();
           break;
       }
