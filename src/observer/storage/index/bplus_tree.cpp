@@ -761,9 +761,10 @@ RC BplusTreeHandler::sync()
 }
 
 RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &attr_types,
-                           const std::vector<int> &attr_lengths, int internal_max_size /* = -1*/,
+                           const std::vector<int> &attr_lengths, bool is_unique, int internal_max_size /* = -1*/,
     int leaf_max_size /* = -1 */)
 {
+  is_unique_ = is_unique;
   // 计算attr的总长度
   int attr_length = 0;
   for(int a:attr_lengths){
@@ -817,6 +818,7 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &
   file_header->internal_max_size = internal_max_size;
   file_header->leaf_max_size = leaf_max_size;
   file_header->root_page = BP_INVALID_PAGE_NUM;
+  file_header->is_unique = int(is_unique);
   //后面开始追加更多索引数据
   if (attr_types.size() > MAX_MULTI_INDEX_NUM){
     LOG_WARN("Now miniob support %d multiindex, however %d are given",MAX_MULTI_INDEX_NUM,attr_types.size());
@@ -841,8 +843,8 @@ RC BplusTreeHandler::create(const char *file_name, const std::vector<AttrType> &
     close();
     return RC::NOMEM;
   }
-
-  key_comparator_.init(file_header->attr_types, file_header->attr_lengths, file_header->attr_num);
+  
+  key_comparator_.init(file_header->attr_types, file_header->attr_lengths, file_header->attr_num, is_unique);
   key_printer_.init(file_header->attr_types, file_header->attr_lengths, file_header->attr_num);
 
   this->sync();
@@ -889,7 +891,7 @@ RC BplusTreeHandler::open(const char *file_name)
   // close old page_handle
   disk_buffer_pool->unpin_page(frame);
 
-  key_comparator_.init(file_header_.attr_types, file_header_.attr_lengths, file_header_.attr_num);
+  key_comparator_.init(file_header_.attr_types, file_header_.attr_lengths, file_header_.attr_num, file_header_.is_unique);
   key_printer_.init(file_header_.attr_types, file_header_.attr_lengths, file_header_.attr_num);
   LOG_INFO("Successfully open index %s", file_name);
   return RC::SUCCESS;

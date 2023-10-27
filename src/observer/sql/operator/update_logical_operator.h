@@ -29,9 +29,8 @@ public:
   std::vector<const FieldMeta*> update_fields() const{
     return update_fields_;
   }
-
 private:
   Table *table_ = nullptr;
   std::vector<const Value*> update_values_;
-  std::vector<const FieldMeta*> update_fields_; 
+  std::vector<const FieldMeta*> update_fields_;
 };

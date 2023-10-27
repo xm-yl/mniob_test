@@ -237,13 +237,15 @@ RC Table::insert_record(Record &record)
   }
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
-  if (rc != RC::SUCCESS) { // 可能出现了键值重复
-    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*error_on_not_exists*/);
-    if (rc2 != RC::SUCCESS) {
-      LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
-                name(), rc2, strrc(rc2));
+  LOG_DEBUG("insert result: rid: %d,%d, rc=%s",record.rid().page_num,record.rid().slot_num,strrc(rc));
+  if (rc != RC::SUCCESS) { // duplicate key when unique index.
+    //TODO 这里unique key的时候会把原来的数据删掉，因为keycomparator没有比较rid，先注释掉
+    for (Index *index : indexes_) {
+      //didn't remove when unique index.
+      if(index->index_meta().is_unique()) continue;
+      rc = index->delete_entry(record.data(), &record.rid());
     }
-    rc2 = record_handler_->delete_record(&record.rid());
+    RC rc2 = record_handler_->delete_record(&record.rid());
     if (rc2 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
@@ -498,15 +500,13 @@ RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_meta
 
 RC Table::update_record(Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields){
   RC rc = RC::SUCCESS;
-  char * r = record.data();
-  std::shared_ptr<Record> old_record = std::make_shared<Record>(record);
-  //delete index_entry
-  for (Index *index : indexes_) {
-    rc = index->delete_entry(record.data(), &record.rid());
-    ASSERT(RC::SUCCESS == rc, 
-          "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-          name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
-  }
+  char * r = new char[table_meta_.record_size()];
+  memcpy(r, record.data(), table_meta_.record_size());
+
+  rc = delete_entry_of_indexes(record.data(), record.rid(), true/*failed when not exists*/);
+  ASSERT(RC::SUCCESS == rc, "failed to remove the original index, %s",strrc(rc));
+
+  // update the values one by one.
   const int sys_field_num = table_meta_.sys_field_num();
   const int field_num = table_meta_.field_num() - sys_field_num;
   for(int i = 0; i < update_fields.size(); i++ ){
@@ -514,28 +514,23 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
     const FieldMeta *update_field_meta = update_fields.at(i);
     int update_location = 0;
     int update_field_length = 0;
+    
+    //Get the offset of updating values.(update_location)
     for(int j = 0; j < field_num;j++){
       const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
       AttrType field_type = field_meta->type();
       const char * field_name = field_meta->name();
-      //field_name 和 type 都要一致 才算合法的update。
+    
+      //check the validation of the value type and name.
       if(strcmp(field_name,update_field_meta->name())==0 && field_type==update_value_type){
           update_field_length = field_meta->len();
           break;
       }
       update_location += field_meta->len();
     }
-    // //delete index_entry
-    // for (Index *index : indexes_) {
-    //   rc = index->delete_entry(record.data(), &record.rid());
-    //   ASSERT(RC::SUCCESS == rc, 
-    //         "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-    //         name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
-    // }
     
     // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
-    
-    // TODO flexible length
+    // update by memcpy
     char *tmp = new char[update_field_length];
     memset(tmp, 0, sizeof(char) * update_field_length);
     memcpy(tmp, update_values.at(i)->data(), min(update_field_length, update_values.at(i)->length()));
@@ -543,24 +538,29 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
     memcpy(r + update_location, tmp, update_field_length);
     delete []tmp;
   }
+
   //insert index_entry
-  rc = insert_entry_of_indexes(record.data(), record.rid());
+  rc = insert_entry_of_indexes(r, record.rid());
   if (rc != RC::SUCCESS) { // 可能出现了键值重复
-    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*error_on_not_exists*/);
-    if (rc2 != RC::SUCCESS) {
-      LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
-                name(), rc2, strrc(rc2));
+    RC rc2 = RC::SUCCESS;
+    for (Index *index : indexes_) {
+      //didn't remove when unique index.
+      if(index->index_meta().is_unique()) continue;
+      rc2 = index->delete_entry(r, &record.rid());
     }
-    rc2 = insert_entry_of_indexes(old_record->data(),old_record->rid());
+    rc2 = insert_entry_of_indexes(record.data(),record.rid());
     //rc2 = record_handler_->delete_record(&record.rid());
     if (rc2 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
     }
+    delete []r;
     return rc;
   }
   // LOG_DEBUG("[Table:update_record] after-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d", *(r), *(r+4), *(r+8), *(r+12));
-  rc = record_handler_->update_record(&record.rid(),record.data());
+
+  rc = record_handler_->update_record(&record.rid(), r);
+  delete []r;
   return rc;
 }
 

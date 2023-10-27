@@ -109,15 +109,17 @@ private:
  * @brief 键值比较(BplusTree)
  * @details BplusTree的键值除了字段属性，还有RID，是为了避免属性值重复而增加的。
  * @ingroup BPlusTree
+ * is_unique 用于确定该索引是不是唯一索引，如果是，那么我们只比较字段属性是否一致
  */
 
-//TODO 
+//  
 class KeyComparator 
 {
 public:
-  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths, int attr_num)
+  void init(std::array<AttrType,MAX_MULTI_INDEX_NUM> types, std::array<int,MAX_MULTI_INDEX_NUM> lengths, int attr_num, bool is_unique)
   {
     attr_comparator_.init(types, lengths, attr_num);
+    is_unique_ = is_unique;
   }
 
   const AttrComparator &attr_comparator() const
@@ -128,10 +130,9 @@ public:
   int operator()(const char *v1, const char *v2) const
   {
     int result = attr_comparator_(v1, v2);
-    if (result != 0) {
+    if (result != 0 || is_unique_) {
       return result;
     }
-
     const RID *rid1 = (const RID *)(v1 + attr_comparator_.attr_length());
     const RID *rid2 = (const RID *)(v2 + attr_comparator_.attr_length());
     return RID::compare(rid1, rid2);
@@ -139,6 +140,7 @@ public:
 
 private:
   AttrComparator attr_comparator_;
+  bool is_unique_;
 };
 
 /**
@@ -250,6 +252,7 @@ struct IndexFileHeader
   int32_t attr_num;           ///< 索引键值的个数
   int32_t key_length;         ///< attr length(s) + sizeof(RID)
   int32_t attr_length;        ///< 键值的(总)长度
+  int32_t is_unique;          ///< 是否是唯一索引
   // AttrType attr_type;         ///< 键值的类型
   //...记录剩下attr - 1 个键值长度与类型
   std::array<int32_t,MAX_MULTI_INDEX_NUM> attr_lengths;          ///< 多键值长度与类型 
@@ -259,7 +262,8 @@ struct IndexFileHeader
     std::stringstream ss;
 
     ss << "attr_length(total):" << attr_length << ","
-       << "key_length:" << key_length << ",";
+       << "key_length:" << key_length << ","
+       << "is_unique"   << is_unique << ",";
     for (int i = 0; i < attr_num; i++){
        ss << "attr_length"<< attr_lengths[i]
           << "attr_type:" << attr_types[i] << ",";
@@ -501,8 +505,10 @@ public:
   RC create(const char *file_name, 
             const std::vector<AttrType> &attr_type, 
             const std::vector<int> &attr_length, 
+            bool is_unique,
             int internal_max_size = -1, 
-            int leaf_max_size = -1);
+            int leaf_max_size = -1
+            );
 
   /**
    * 打开名为fileName的索引文件。
@@ -548,6 +554,8 @@ public:
    * @note thread unsafe
    */
   bool validate_tree();
+
+  bool is_unique() const ;
 
 public:
   /**
@@ -615,6 +623,9 @@ protected:
   KeyPrinter      key_printer_;
 
   std::unique_ptr<common::MemPoolItem> mem_pool_item_;
+
+  // 该处理索引是否唯一
+  bool is_unique_ ;
 
 private:
   friend class BplusTreeScanner;
