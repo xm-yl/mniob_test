@@ -239,13 +239,14 @@ RC Table::insert_record(Record &record)
   rc = insert_entry_of_indexes(record.data(), record.rid());
   LOG_DEBUG("insert result: rid: %d,%d, rc=%s",record.rid().page_num,record.rid().slot_num,strrc(rc));
   if (rc != RC::SUCCESS) { // duplicate key when unique index.
-    //TODO 这里unique key的时候会把原来的数据删掉，因为keycomparator没有比较rid，先注释掉
-    for (Index *index : indexes_) {
-      //didn't remove when unique index.
-      if(index->index_meta().is_unique()) continue;
-      rc = index->delete_entry(record.data(), &record.rid());
-    }
-    RC rc2 = record_handler_->delete_record(&record.rid());
+    // remove the index which insert successfully
+    RC rc2 = delete_entry_of_indexes(record.data(),record.rid(),false,false);
+    // for (Index *index : indexes_) {
+    //   //didn't remove when unique index because it didnt insert.
+    //   if(index->index_meta().is_unique()) continue;
+    //   rc = index->delete_entry(record.data(), &record.rid());
+    // }
+    rc2 = record_handler_->delete_record(&record.rid());
     if (rc2 != RC::SUCCESS) {
       LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
@@ -291,7 +292,7 @@ RC Table::recover_insert_record(Record &record)
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
   if (rc != RC::SUCCESS) { // 可能出现了键值重复
-    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*error_on_not_exists*/);
+    RC rc2 = delete_entry_of_indexes(record.data(), record.rid(), false/*dont del unique*/,false/*error_on_not_exists*/);
     if (rc2 != RC::SUCCESS) {
       LOG_ERROR("Failed to rollback index data when insert index entries failed. table name=%s, rc=%d:%s",
                 name(), rc2, strrc(rc2));
@@ -502,8 +503,7 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
   RC rc = RC::SUCCESS;
   char * r = new char[table_meta_.record_size()];
   memcpy(r, record.data(), table_meta_.record_size());
-
-  rc = delete_entry_of_indexes(record.data(), record.rid(), true/*failed when not exists*/);
+  rc = delete_entry_of_indexes(record.data(), record.rid(), true /*need delete unique*/,true/*failed when not exists*/);
   ASSERT(RC::SUCCESS == rc, "failed to remove the original index, %s",strrc(rc));
 
   // update the values one by one.
@@ -543,11 +543,12 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
   rc = insert_entry_of_indexes(r, record.rid());
   if (rc != RC::SUCCESS) { // 可能出现了键值重复
     RC rc2 = RC::SUCCESS;
-    for (Index *index : indexes_) {
-      //didn't remove when unique index.
-      if(index->index_meta().is_unique()) continue;
-      rc2 = index->delete_entry(r, &record.rid());
-    }
+    rc2 = delete_entry_of_indexes(record.data(),record.rid(),false/*need to delete unique*/,false/*error on not exists*/);
+    // for (Index *index : indexes_) {
+    //   //didn't remove when unique index.
+    //   if(index->index_meta().is_unique()) continue;
+    //   rc2 = index->delete_entry(r, &record.rid());
+    // }
     rc2 = insert_entry_of_indexes(record.data(),record.rid());
     //rc2 = record_handler_->delete_record(&record.rid());
     if (rc2 != RC::SUCCESS) {
@@ -590,10 +591,14 @@ RC Table::insert_entry_of_indexes(const char *record, const RID &rid)
   return rc;
 }
 
-RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists)
+RC Table::delete_entry_of_indexes(const char *record, const RID &rid, bool need_delete_unique,bool error_on_not_exists)
 {
   RC rc = RC::SUCCESS;
   for (Index *index : indexes_) {
+    if(index->index_meta().is_unique() && !need_delete_unique) {
+      rc = RC::SUCCESS;
+      continue;
+    }
     rc = index->delete_entry(record, &rid);
     if (rc != RC::SUCCESS) {
       if (rc != RC::RECORD_INVALID_KEY || !error_on_not_exists) {
