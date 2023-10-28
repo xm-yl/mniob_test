@@ -530,6 +530,10 @@ public:
     return RC::SUCCESS;
   }
 
+  const std::vector<TupleCellSpec> & specs() const {
+    return specs_;
+  }
+
 private:
   std::vector<Value> value_list;
   std::vector<TupleCellSpec> specs_;

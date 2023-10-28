@@ -33,6 +33,7 @@ RC OrderByPhysicalOperator::next() {
   OrderByTuple* now_tuple;
   Tuple* ret_tuple;
   RC rc;
+  LOG_DEBUG("extract tuple info start");
   while((rc = child->next()) == RC::SUCCESS) {
     ret_tuple = child->current_tuple();
     now_tuple = new OrderByTuple();
@@ -42,6 +43,8 @@ RC OrderByPhysicalOperator::next() {
     }
     this->tuples_.push_back(now_tuple);
   }
+
+  LOG_DEBUG("extract tuple info complete");
   
   if(0 == static_cast<int>(this->tuples_.size())) {
     return RC::RECORD_EOF;
@@ -49,14 +52,25 @@ RC OrderByPhysicalOperator::next() {
 
   this->get_order_field_specs();
 
+  LOG_DEBUG("size of order by tuples:%d", this->tuples_.size());
 
+  std::vector<int> cell_at_index(cell_specs_.size());
+  const std::vector<TupleCellSpec> table_spec = this->tuples_[0]->specs();
+
+  for(size_t i = 0;i < cell_specs_.size(); i++) {
+    for(size_t j = 0;j < table_spec.size(); j++) {
+      if(0 == strcmp(table_spec[j].table_name(), cell_specs_[i].table_name()) && 0 == strcmp(table_spec[j].field_name(), cell_specs_[i].field_name())) {
+        cell_at_index[i] = j;
+      }
+    }
+  }
 
   std::sort(this->tuples_.begin(), this->tuples_.end(), 
   [&](OrderByTuple* lhs, OrderByTuple*rhs){
     for(int i = 0;i < static_cast<int> (cell_specs_.size()); i++) {
       Value l_value, r_value;
-      lhs->find_cell(cell_specs_[i], l_value);
-      rhs->find_cell(cell_specs_[i], r_value);
+      lhs->cell_at(cell_at_index[i], l_value);
+      rhs->cell_at(cell_at_index[i], r_value);
       int cmp_result = l_value.compare(r_value);
       if(cmp_result == 0) continue;
       if(is_asc_[i]) {
@@ -67,6 +81,7 @@ RC OrderByPhysicalOperator::next() {
     }
     return false;
   });
+  LOG_DEBUG("finish order by");
 
   this->tuple_ = this->tuples_[now_tuple_index++];
   return RC::SUCCESS;
