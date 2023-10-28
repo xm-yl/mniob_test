@@ -119,6 +119,9 @@ public:
    */
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const = 0;
 
+  virtual RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) = 0;
+
+
   virtual std::string to_string() const
   {
     std::string str;
@@ -164,6 +167,7 @@ public:
   void set_schema(const Table *table, const std::vector<FieldMeta> *fields)
   {
     table_ = table;
+    this->speces_.clear();
     this->speces_.reserve(fields->size());
     for (const FieldMeta &field : *fields) {
       speces_.push_back(new FieldExpr(table, &field));
@@ -229,6 +233,13 @@ public:
     return *record_;
   }
 
+  RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    for(size_t i = 0;i < speces_.size(); i++) {
+      ret_specs.emplace_back(table_->name(), speces_[i]->field_name(), speces_[i]->field_name());
+    }
+    return RC::SUCCESS;
+  }
+
 private:
   Record *record_ = nullptr;
   const Table *table_ = nullptr;
@@ -286,6 +297,10 @@ public:
     return tuple_->find_cell(spec, cell);
   }
 
+  RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    return RC::INTERNAL;
+  }
+
 #if 0
   RC cell_spec_at(int index, const TupleCellSpec *&spec) const override
   {
@@ -338,6 +353,9 @@ public:
     return RC::NOTFOUND;
   }
 
+  RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    return RC::INTERNAL;
+  }
 
 private:
   const std::vector<std::unique_ptr<Expression>> &expressions_;
@@ -378,6 +396,9 @@ public:
     return RC::INTERNAL;
   }
 
+  RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    return RC::INTERNAL;
+  }
 private:
   std::vector<Value> cells_;
 };
@@ -410,7 +431,7 @@ public:
   RC cell_at(int index, Value &value) const override
   {
     const int left_cell_num = left_->cell_num();
-    if (index > 0 && index < left_cell_num) {
+    if (index >= 0 && index < left_cell_num) {
       return left_->cell_at(index, value);
     }
 
@@ -431,7 +452,85 @@ public:
     return right_->find_cell(spec, value);
   }
 
+  RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    RC rc = left_->make_cell_specs(ret_specs);
+    
+    if(OB_FAIL(rc)) {
+      return rc;
+    }
+
+    rc = right_->make_cell_specs(ret_specs);
+    return rc;
+  }
 private:
   Tuple *left_ = nullptr;
   Tuple *right_ = nullptr;
+};
+
+class OrderByTuple : public Tuple 
+{
+public:
+  OrderByTuple() = default;
+  virtual ~OrderByTuple() = default;
+
+  /**
+   * @brief 获取元组中的Cell的个数
+   * @details 个数应该与tuple_schema一致
+   */
+  int cell_num() const override {
+    return specs_.size();
+  }
+
+  /**
+   * @brief 获取指定位置的Cell
+   * 
+   * @param index 位置
+   * @param[out] cell  返回的Cell
+   */
+  RC cell_at(int index, Value &cell) const override {
+    cell = value_list[index];
+    return RC::SUCCESS;
+  }
+
+  /**
+   * @brief 根据cell的描述，获取cell的值
+   * 
+   * @param spec cell的描述
+   * @param[out] cell 返回的cell
+   */
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override{
+    for(size_t i = 0;i < specs_.size(); i++) {
+      if (0 == strcmp( specs_[i].table_name(),spec.table_name()) && 0 == strcmp(specs_[i].field_name(), spec.field_name())) {
+        cell = value_list[i];
+        return RC::SUCCESS;
+      } 
+    }
+    return RC::NOTFOUND;
+  }
+
+  RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    ret_specs = specs_;
+    return RC::SUCCESS;
+  }
+
+  RC exract_tuple_info(Tuple* tuple) {
+    RC rc = tuple->make_cell_specs(specs_);
+    if(OB_FAIL(rc)) {
+      return rc;
+    }
+    Value v;
+    //specs should be same as the cell_at
+    for(size_t i = 0;i < specs_.size(); i++) {
+      rc = tuple->cell_at(i, v);
+      if(OB_FAIL(rc)) {
+        return rc;
+      }
+      value_list.push_back(std::move(v));
+    }
+    return RC::SUCCESS;
+  }
+
+private:
+  std::vector<Value> value_list;
+  std::vector<TupleCellSpec> specs_;
 };

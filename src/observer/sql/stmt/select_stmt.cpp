@@ -213,6 +213,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     on_conditions.push_back(filter_stmt);
   }
 
+
+
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt with %d on_conditions", tables.size(), query_fields.size(), on_conditions.size());
 
   // create filter statement in `where` statement
@@ -227,6 +229,53 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     LOG_WARN("cannot construct filter stmt");
     return rc;
   }
+
+  std::vector<Field> order_fields;
+  std::vector<bool> is_asc;
+  // create order statement in `where` statement
+  // almost same as select attributes
+  for (int i = 0; i < static_cast<int>(select_sql.order_bys.size()); i++) {
+    is_asc.push_back(select_sql.order_bys[i].order_by == ORDER_ASC);
+    const RelAttrSqlNode & relation_attr = select_sql.order_bys[i].rel_name;
+    const char *table_name = relation_attr.relation_name.c_str();
+    const char *field_name = relation_attr.attribute_name.c_str();
+
+    //table name is empty
+    if (0 == strcmp("", table_name)) {
+      if (tables.size() != 1) {
+        LOG_WARN("[order by stmt] invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      Table *table = tables[0];
+      const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+      if (nullptr == field_meta) {
+        LOG_WARN("[order by stmt] no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      order_fields.push_back(Field(table, field_meta, NO_AGGR_OP));
+
+    } else {
+    // table name not empty
+      auto iter = table_map.find(table_name); 
+      if (iter == table_map.end()) {
+        LOG_WARN("[order by stmt] no such table in from list: %s", table_name);
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+
+      Table *table = iter->second;
+
+      const FieldMeta *field_meta = table->table_meta().field(field_name);
+      if (nullptr == field_meta) {
+        LOG_WARN("[order by stmt] no such field. in order field=%s.%s.%s", db->name(), table->name(), field_name);
+        return RC::SCHEMA_FIELD_MISSING;
+      }
+      order_fields.push_back(Field(table, field_meta, NO_AGGR_OP));
+    }
+
+  }
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
@@ -234,6 +283,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->on_conditions_.swap(on_conditions);
+  select_stmt->sort_fields_.swap(order_fields);
+  select_stmt->is_asc_.swap(is_asc);
   stmt = select_stmt;
   return RC::SUCCESS;
 }
