@@ -81,7 +81,7 @@ public:
    * @param record[in/out] 传入的数据包含具体的数据，插入成功会通过此字段返回RID
    */
   RC insert_record(Record &record);
-  RC update_record(Record &record, Value* value, std::string update_attribute);
+  RC update_record(Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
   RC get_record(const RID &rid, Record &record);
@@ -89,7 +89,7 @@ public:
   RC recover_insert_record(Record &record);
 
   // TODO refactor
-  RC create_index(Trx *trx, const std::vector<const FieldMeta *>& field_meta, const char *index_name);
+  RC create_index(Trx *trx, const std::vector<const FieldMeta *>& field_meta, const char *index_name, bool is_unique);
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
 
@@ -108,7 +108,7 @@ public:
 
 private:
   RC insert_entry_of_indexes(const char *record, const RID &rid);
-  RC delete_entry_of_indexes(const char *record, const RID &rid, bool error_on_not_exists);
+  RC delete_entry_of_indexes(const char *record, const RID &rid, bool need_delete_unique, bool error_on_not_exists);
 
 private:
   RC init_record_handler(const char *base_dir);

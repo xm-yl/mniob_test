@@ -59,6 +59,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         DROP
         TABLE
         TABLES
+        UNIQUE
         INDEX
         CALC
         SELECT
@@ -132,6 +133,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::string> *        relation_list;
   std::vector<std::string> *        index_list;
   std::vector<JoinTableSqlNode> *   join_table_list;
+  std::string *                     is_unique;
   std::vector<OrderBySqlNode> *     order_bys;
   char *                            string;
   int                               number;
@@ -162,6 +164,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
+%type <condition_list>      update_exprs
 %type <condition_list>      condition_list
 %type <rel_attr_list>       select_aggr_attr
 %type <condition_list>      on_condition_exprs
@@ -183,6 +186,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <sql_node>            drop_table_stmt
 %type <sql_node>            show_tables_stmt
 %type <sql_node>            desc_table_stmt
+%type <is_unique>           unique_token
 %type <sql_node>            create_index_stmt
 %type <sql_node>            drop_index_stmt
 %type <sql_node>            sync_stmt
@@ -303,24 +307,34 @@ ind_list:
       free($2);
     }
     
-    
-create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID ind_list RBRACE
+unique_token:
+  /*empty*/{
+    $$ = nullptr;
+  }
+  | UNIQUE {
+    $$ = new std::string("uniqueistrue");
+  }
+create_index_stmt:     /*create index 语句的语法解析树*/
+    CREATE unique_token INDEX ID ON ID LBRACE ID ind_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
-      create_index.index_name = $3;
-      create_index.relation_name = $5;
-      std::vector<string> * ind_list = $8;
+      if($2 != nullptr){
+        create_index.is_unique = *$2;
+        delete $2;
+      }
+      create_index.index_name = $4;
+      create_index.relation_name = $6;
+      std::vector<string> * ind_list = $9;
       if(ind_list != nullptr) {
         create_index.attribute_name.swap(*ind_list);
       }
-      create_index.attribute_name.push_back($7);
+      create_index.attribute_name.push_back($8);
       std::reverse(create_index.attribute_name.begin(),create_index.attribute_name.end());
-      free($3);
-      free($5);
-      free($7);
-      delete $8;
+      free($4);
+      free($6);
+      free($8);
+      delete $9;
     }
     ;
 
@@ -526,19 +540,50 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       free($3);
     }
     ;
+update_exprs: 
+  /*empty*/{
+    $$ = nullptr;
+  }
+  | COMMA ID EQ value update_exprs{
+    if($5 == nullptr){
+      $$ = new std::vector<ConditionSqlNode>;
+    }
+    else {
+      $$ = $5;
+    }
+    ConditionSqlNode* expr = new ConditionSqlNode();
+    expr->left_is_attr = 1;
+    expr->left_attr.attribute_name = $2;
+    expr->right_is_attr = 0;
+    expr->right_value = *$4;
+    expr->comp = EQUAL_TO;
+    $$->push_back(*expr);
+    delete expr;
+    free($2);
+    delete $4;
+  }
+  ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET ID EQ value update_exprs where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      $$->update.attribute_name.push_back($4);
+      $$->update.value.push_back(*$6);
+      delete $6;
+      if ($8 != nullptr) {
+        $$->update.conditions.swap(*$8);
+        delete $8;
       }
       free($2);
       free($4);
+      if ($7 != nullptr){
+        for(int i=0; i < (int)$7->size(); i++){
+          $$->update.attribute_name.push_back($7->at(i).left_attr.attribute_name);
+          $$->update.value.push_back($7->at(i).right_value);
+        }
+        delete $7;
+      }
     }
     ;
 

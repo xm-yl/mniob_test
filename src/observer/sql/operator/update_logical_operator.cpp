@@ -1,7 +1,6 @@
 #include "sql/operator/update_logical_operator.h"
 
 
-UpdateLogicalOperator::UpdateLogicalOperator(Table *table,Value* value,const std::string & update_attribute)
-    :table_(table),value_(value),update_attribute_(update_attribute){
-
+UpdateLogicalOperator::UpdateLogicalOperator(Table *table,std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields)
+    :table_(table),update_values_(update_values),update_fields_(update_fields){
 }
