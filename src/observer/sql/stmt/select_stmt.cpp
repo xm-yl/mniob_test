@@ -26,6 +26,12 @@ SelectStmt::~SelectStmt()
     delete filter_stmt_;
     filter_stmt_ = nullptr;
   }
+  for (int i = 0; i < static_cast<int>(on_conditions_.size()); i++){
+    delete on_conditions_[i];
+  }
+  for (int i = 0; i < static_cast<int>(sub_querys_.size()); i++){
+    delete sub_querys_[i];
+  }
 }
 //聚合操作与类型检查
 static bool check_type_match(AttrType field_type, AggrOp aggr_op){
@@ -227,6 +233,20 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     LOG_WARN("cannot construct filter stmt");
     return rc;
   }
+
+  // create subquery
+  // std::vector<SelectStmt *> tmp_sub_querys;
+  // for(int i = 0; i < static_cast<int>(select_sql.sub_query.size()); i++){
+  //   Stmt *sub_query_stmt = nullptr;
+  //   rc = SelectStmt::create(db, *select_sql.sub_query[i], sub_query_stmt);
+  //   if (rc != RC::SUCCESS){
+  //     LOG_ERROR("Create %d th sub_query stmt failed, %s", i, strrc(rc));
+  //     return rc;
+  //   }
+  //   tmp_sub_querys.push_back(dynamic_cast<SelectStmt *>(sub_query_stmt));
+  // }
+
+
   // everything alright
   SelectStmt *select_stmt = new SelectStmt();
   // TODO add expression copy
@@ -234,6 +254,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   select_stmt->query_fields_.swap(query_fields);
   select_stmt->filter_stmt_ = filter_stmt;
   select_stmt->on_conditions_.swap(on_conditions);
+  select_stmt->sub_querys_.swap(tmp_sub_querys);
   stmt = select_stmt;
   return RC::SUCCESS;
 }

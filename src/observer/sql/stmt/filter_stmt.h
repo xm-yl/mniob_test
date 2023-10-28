@@ -29,17 +29,23 @@ struct FilterObj
   bool is_attr;
   Field field;
   Value value;
-
+  bool is_sub_query;
+  std::vector<Value> values;
   void init_attr(const Field &field)
   {
     is_attr = true;
+    is_sub_query = false;
     this->field = field;
   }
 
   void init_value(const Value &value)
   {
     is_attr = false;
+    is_sub_query = false;
     this->value = value;
+  }
+  void init_values(){
+    is_attr = false;
   }
 };
 
@@ -100,6 +106,10 @@ public:
     return filter_units_;
   }
 
+  const std::vector<SelectStmt *> sub_querys() const
+  {
+    return sub_querys_;
+  }
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
       const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
@@ -109,4 +119,5 @@ public:
 
 private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
+  std::vector<SelectStmt *> sub_querys_;
 };

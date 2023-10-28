@@ -14,7 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
-
+#include <algorithm>
 using namespace std;
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
@@ -85,7 +85,30 @@ ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_
 
 ComparisonExpr::~ComparisonExpr()
 {}
-
+RC ComparisonExpr::compare_values(const Value&left, const std::vector<Value> & right, bool &result) const{
+  RC rc = RC::SUCCESS;
+  switch (comp_) {
+    case CompOp::IN_OP:{
+      auto it = std::find(right.begin(),right.end(),[&,left](const Value& r){return !left.compare(r);});
+      result = (it != right.end());
+    }break;
+    case CompOp::NOT_IN_OP:{
+      auto it = std::find(right.begin(),right.end(),[&,left](const Value& r){return !left.compare(r);});
+      result = (it == right.end());
+    }break;
+    case CompOp::EXISTS_OP:{
+      result = !right.empty();
+    }break;
+    case CompOp::NOT_EXISTS_OP:{
+      result = right.empty();
+    }break;
+    default: {
+      LOG_WARN("unsupported comparison. %d", comp_);
+      rc = RC::INTERNAL;
+    } break;
+  }
+  return rc;
+}
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   RC rc = RC::SUCCESS;
@@ -149,24 +172,39 @@ RC ComparisonExpr::try_get_value(Value &cell) const
 
 RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 {
-  Value left_value;
-  Value right_value;
-
-  RC rc = left_->get_value(tuple, left_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
+  RC rc = RC::SUCCESS;
+  if(comp_ == CompOp::IN_OP     || comp_ == CompOp::NOT_IN_OP     ||
+     comp_ == CompOp::EXISTS_OP || comp_ == CompOp::NOT_EXISTS_OP)  {
+    
+    Value left_value;
+    ASSERT(right_->type() == ExprType::SUBQUERY,"in or exists only used when subquerys");
+    std::vector<Value> right_values = dynamic_cast<SubQueryExpr*>(right_.get())->values();
+    bool bool_value = false;
+    rc = compare_values(left_value, right_values, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
-  }
+  else{
+    Value left_value;
+    Value right_value;
 
-  bool bool_value = false;
-  rc = compare_value(left_value, right_value, bool_value);
-  if (rc == RC::SUCCESS) {
-    value.set_boolean(bool_value);
+    rc = left_->get_value(tuple, left_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+
+    bool bool_value = false;
+    rc = compare_value(left_value, right_value, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
   }
   return rc;
 }

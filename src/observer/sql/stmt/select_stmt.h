@@ -35,7 +35,7 @@ class SelectStmt : public Stmt
 {
 public:
   SelectStmt() = default;
-  ~SelectStmt() override;
+  virtual ~SelectStmt() override;
 
   StmtType type() const override
   {
@@ -70,11 +70,14 @@ public:
     return this->on_conditions_;
   }
 
+  const std::vector<SelectStmt *> &sub_querys() const {
+    return this->sub_querys_;
+  }
+
 private:
   std::vector<Field> query_fields_;
   std::vector<Table *> tables_;
   FilterStmt *filter_stmt_ = nullptr;
-  // std::vector<std::string> aggr_fields_;
-  // std::vector<AggrOp> aggr_ops_;
-  std::vector<FilterStmt *> on_conditions_;
+  std::vector<FilterStmt *> on_conditions_; // memory leak  ?
+  std::vector<SelectStmt *> sub_querys_;    // all subquerys.
 };

@@ -43,6 +43,7 @@ enum class ExprType
   COMPARISON,   ///< 需要做比较的表达式
   CONJUNCTION,  ///< 多个表达式使用同一种关系(AND或OR)来联结
   ARITHMETIC,   ///< 算术运算
+  SUBQUERY,     ///< 子查询表达式
 };
 
 /**
@@ -157,6 +158,43 @@ public:
 private:
   Value value_;
 };
+/* 子查询表达式*/
+/**
+ * @brief 子查询表达式
+ * @ingroup Expression
+**/
+
+class SubQueryExpr : public Expression{
+public:
+  SubQueryExpr() = default;
+  explicit SubQueryExpr(const std::vector<Value> &values): values_(values)
+  {}
+  virtual ~SubQueryExpr() = default;
+
+  RC get_value(const Tuple &tuple, Value &value) const override{
+    return RC::UNIMPLENMENT;
+  }
+//TODO: WORKINT IN PROGRESS
+public:
+  RC try_get_value(Value &value) const override { return RC::UNIMPLENMENT; }
+  ExprType type() const override { return ExprType::SUBQUERY; }
+  AttrType value_type() const override {
+    if (values_.empty()) return AttrType::UNDEFINED;
+    return values_[0].attr_type();
+  }
+
+public:
+  int value_num () const {return values_.size();}
+  RC push_back(const Value& a){
+    values_.push_back(a);
+    return RC::SUCCESS;
+  }
+  const std::vector<Value> & values() const{
+    return values_;
+  }
+private:
+  std::vector<Value> values_;
+};
 
 /**
  * @brief 类型转换表达式
@@ -220,7 +258,9 @@ public:
    * @param value the result of comparison
    */
   RC compare_value(const Value &left, const Value &right, bool &value) const;
-
+  
+  //used for in, exists 
+  RC compare_values(const Value&left, const std::vector<Value> & right, bool &result) const;
 private:
   CompOp comp_;
   std::unique_ptr<Expression> left_;

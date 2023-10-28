@@ -16,8 +16,10 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include "common/lang/string.h"
 #include "sql/stmt/filter_stmt.h"
+#include "sql/stmt/select_stmt.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+
 
 FilterStmt::~FilterStmt()
 {
@@ -25,6 +27,9 @@ FilterStmt::~FilterStmt()
     delete unit;
   }
   filter_units_.clear();
+  for (SelectStmt* sub_query: this->sub_querys_){
+    if(sub_query !=nullptr) delete sub_query;
+  }
 }
 
 RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
@@ -43,6 +48,22 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
       return rc;
     }
     tmp_stmt->filter_units_.push_back(filter_unit);
+  }
+  
+  //create the subquerystmt(selectstmt) according to filter_units_
+  for(int i = 0; i < condition_num; i++) {
+    if(!conditions[i].right_is_sub_query){
+      tmp_stmt->sub_querys_.push_back(nullptr);
+    }
+    else {
+      Stmt *sub_query_stmt = nullptr;
+      rc = SelectStmt::create(db, conditions[i].right_sub_query, sub_query_stmt);
+      if (rc != RC::SUCCESS){
+        LOG_ERROR("Create %d th sub_query stmt failed, %s", i, strrc(rc));
+        return rc;
+      }
+      tmp_stmt->sub_querys_.push_back(dynamic_cast<SelectStmt *>(sub_query_stmt));
+    }
   }
 
   stmt = tmp_stmt;
@@ -106,21 +127,27 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_value(condition.left_value);
     filter_unit->set_left(filter_obj);
   }
-
-  if (condition.right_is_attr) {
-    Table *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr");
-      return rc;
+  if (!condition.right_is_sub_query){
+    if (condition.right_is_attr) {
+      Table *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr");
+        return rc;
+      }
+      FilterObj filter_obj;
+      filter_obj.init_attr(Field(table, field));
+      filter_unit->set_right(filter_obj);
+    } else {
+      FilterObj filter_obj;
+      filter_obj.init_value(condition.right_value);
+      filter_unit->set_right(filter_obj);
     }
+  }
+  else{
     FilterObj filter_obj;
-    filter_obj.init_attr(Field(table, field));
-    filter_unit->set_right(filter_obj);
-  } else {
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.right_value);
+    filter_obj.init_values();
     filter_unit->set_right(filter_obj);
   }
 
