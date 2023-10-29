@@ -52,7 +52,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
   
   //create the subquerystmt(selectstmt) according to filter_units_
   for(int i = 0; i < condition_num; i++) {
-    if(!conditions[i].right_is_sub_query){
+    if(!conditions[i].right_is_sub_query || !conditions[i].right_values.empty()){
       tmp_stmt->sub_querys_.push_back(nullptr);
     }
     else {
@@ -192,7 +192,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   }
   else{
     FilterObj filter_obj;
-    filter_obj.init_values();
+    filter_obj.init_values(condition.right_values);
     filter_unit->set_right(filter_obj);
   }
 

@@ -112,7 +112,7 @@ struct ConditionSqlNode
   Value           right_value;        ///< right-hand side value if right_is_attr = FALSE
   int             right_is_sub_query = 0; ///< 1时，操作符右边是另外的一个子查询
   std::shared_ptr<SelectSqlNode>  right_sub_query;    ///< right-hand side is another sub_query.
-
+  std::vector<Value>     right_values;        ///<  right-hand side is a set.
   bool validate() {
     //LOG_DEBUG("conditions lvalue:%d rvalue:%d", left_value.attr_type(), right_value.attr_type());
     return left_value.validate() && right_value.validate();

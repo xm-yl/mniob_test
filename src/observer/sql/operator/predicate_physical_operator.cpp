@@ -38,7 +38,8 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     return RC::INTERNAL;
   }
   RC rc = RC::SUCCESS;
-  for(int i = 0; i < children_.size(); i++){ 
+  for(int i = 0; i < children_.size(); i++){
+    if(children_[i] == nullptr) continue;
     rc = children_[i]->open(trx);
 
     // if(i != (children_.size() -1) && children_[i]->current_tuple()->cell_num() > 1){
@@ -69,11 +70,15 @@ RC PredicatePhysicalOperator::init_sub_query_expr(){
   //check if contains subquery, the last is the main query so dont travese it.
   for(int i = 0; i < children_exprs_num; i++){
     LOG_DEBUG(" %d th children has sub query", i);
+    if(children_.at(i) == nullptr) continue;
     ComparisonExpr* children_expr = static_cast<ComparisonExpr*> (conj_expr->children().at(i).get());
     Expression*     right_expr    = children_expr->right().get();
     
     // Begin subquery if expr contains sub query
-    if(right_expr->type() == ExprType::SUBQUERY){  
+    if(right_expr->type() == ExprType::SUBQUERY){
+      if(!dynamic_cast<SubQueryExpr*>(right_expr)->values().empty()){
+        continue;
+      }
       PhysicalOperator* oper = children_.at(sub_query_count++).get();
       
       //get value by next()

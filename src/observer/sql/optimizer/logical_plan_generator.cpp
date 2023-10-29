@@ -187,7 +187,7 @@ RC LogicalPlanGenerator::create_plan(
     const FilterObj &filter_obj_right = filter_unit->right();
     SelectStmt* sub_query = filter_stmt->sub_querys()[filter_units_num];
     //normal if no sub_query
-    if(nullptr == sub_query){
+    if(!filter_obj_right.is_sub_query ){
       unique_ptr<Expression> left(filter_obj_left.is_attr
                                           ? static_cast<Expression *>(new FieldExpr(filter_obj_left.field))
                                           : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
@@ -215,7 +215,7 @@ RC LogicalPlanGenerator::create_plan(
   if (!cmp_exprs.empty()) {
     unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
     predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
-  }
+}
   
   // add sub query logical operator to filter stmt.
   for(int i = 0; i < filter_units_num; i++) {
