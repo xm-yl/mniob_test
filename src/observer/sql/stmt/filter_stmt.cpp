@@ -59,12 +59,18 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
       const CompOp this_op = conditions[i].comp;
       const SelectSqlNode& a = *conditions[i].right_sub_query;
       const AggrOp this_aggr_op = a.attributes.front().aggr_op;
+      const int field_num = default_table->table_meta().field_num();
       const std::string domain = a.attributes.front().attribute_name;
+      
+      //子查询的语法检查
+      // 1. 没有聚合函数时候使用等于类的比较        (比较不支持多行)
+      // 2. 没有聚合函数时候使用*查询且表列数大于1   (不支持多列)
+      // 3. 查询列数大于1                          (不支持多列)
       if(this_op>=EQUAL_TO && this_op <=GREAT_THAN && this_aggr_op==NO_AGGR_OP){
         LOG_WARN("Didnt support multi row for comparsion =,<,>,<> and so on");
         return RC::INTERNAL;        
       }
-      if(this_aggr_op==NO_AGGR_OP && domain == std::string("*")){
+      if(this_aggr_op==NO_AGGR_OP && (domain == std::string("*") && field_num != 1)){
         LOG_WARN("Didnt support * for subquery without aggregation");
         return RC::INTERNAL;
       }
@@ -72,6 +78,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
         LOG_WARN("Didnt support multiple domain for subquery");
         return RC::INTERNAL;
       }
+      
       Stmt *sub_query_stmt = nullptr;
       rc = SelectStmt::create(db, *conditions[i].right_sub_query, sub_query_stmt);
       if (rc != RC::SUCCESS){
