@@ -76,12 +76,12 @@ RC OrderByPhysicalOperator::next() {
         continue;
       } else if(l_value.is_null() && (!r_value.is_null())) {
         // l_value is null and we want null to be on the top of the order by when ASC vise versa.
-        // so it returns false when ASC to make the l_value on the top of the order by
-        // it returns true when DESC to make the l_value on the bottom of the order by
-        return !is_asc_[i];
+        // so it returns true when ASC to make the l_value on the top of the order by
+        // it returns false when DESC to make the l_value on the bottom of the order by
+        return is_asc_[i] == true;
       } else if ((!l_value.is_null()) && r_value.is_null()) {
         //deduce type error
-        return is_asc_[i] == true;
+        return is_asc_[i] == false;
       }
 
       //l_value and r_value not null
