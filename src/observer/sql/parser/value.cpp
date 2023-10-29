@@ -14,11 +14,13 @@ See the Mulan PSL v2 for more details. */
 
 #include <sstream>
 #include <cctype>
+#include <algorithm>
 #include "sql/parser/value.h"
 #include "storage/field/field.h"
 #include "common/log/log.h"
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
+
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "booleans"};
 
@@ -27,9 +29,9 @@ bool check_date(int y, int m, int d)
   static int mon[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   bool leap = (y%400==0 || (y%100 && y%4==0));
 
-  LOG_DEBUG("y:%d m:%d d:%d res:%d", y, m, d, y > 0
-    && (m > 0)&&(m <= 12)
-    && (d > 0)&&(d <= ((m==2 && leap)?1:0) + mon[m]));
+  //LOG_DEBUG("y:%d m:%d d:%d res:%d", y, m, d, y > 0
+    //&& (m > 0)&&(m <= 12)
+    //&& (d > 0)&&(d <= ((m==2 && leap)?1:0) + mon[m]));
 
   return y > 0
     && (m > 0)&&(m <= 12)
@@ -53,28 +55,57 @@ AttrType attr_type_from_string(const char *s)
   return UNDEFINED;
 }
 
+bool Value::null_helper(const char* s, int len) {
+  if(len == 0) {
+    this->set_null(false);
+    return false;
+  }
+
+  bool null_data = true;
+  for(int i = 0;i < std::min(len, (int)sizeof(num_value_.int_value_)); i++) {
+    if(s[i] != null_magic_byte) {
+      null_data = false;
+      break;
+    }
+  }
+  if(null_data) {
+    this->set_null(true);
+    this->length_ = std::min(len, (int)sizeof(num_value_.int_value_));
+    return true;
+  }
+
+  this->set_null(false);
+  return false;
+}
+
 Value::Value(int val)
 {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&val)), sizeof(val))) return;
   set_int(val);
 }
 
 Value::Value(float val)
 {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&val)), sizeof(val))) return;
+
   set_float(val);
 }
 
 Value::Value(bool val)
 {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&val)), sizeof(val))) return;
   set_boolean(val);
 }
 
 Value::Value(const char *s, int len /*= 0*/)
 {
+  if(null_helper(s, len)) return;
   set_string(s, len);
 }
 
 void Value::set_data(char *data, int length)
 {
+  if(null_helper(data, length)) return;
   switch (attr_type_) {
     case CHARS: {
       set_string(data, length);
@@ -102,6 +133,7 @@ void Value::set_data(char *data, int length)
 }
 void Value::set_int(int val)
 {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&val)), sizeof(val))) return;
   attr_type_ = INTS;
   num_value_.int_value_ = val;
   length_ = sizeof(val);
@@ -109,18 +141,21 @@ void Value::set_int(int val)
 
 void Value::set_float(float val)
 {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&val)), sizeof(val))) return;
   attr_type_ = FLOATS;
   num_value_.float_value_ = val;
   length_ = sizeof(val);
 }
 void Value::set_boolean(bool val)
 {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&val)), sizeof(val))) return;
   attr_type_ = BOOLEANS;
   num_value_.bool_value_ = val;
   length_ = sizeof(val);
 }
 void Value::set_string(const char *s, int len /*= 0*/)
 {
+  if(null_helper(s, len)) return;
   attr_type_ = CHARS;
   if (len > 0) {
     len = strnlen(s, len);
@@ -133,6 +168,13 @@ void Value::set_string(const char *s, int len /*= 0*/)
 
 void Value::set_value(const Value &value)
 {
+  if (value.is_null()) {
+    this->is_null_ = true;
+    this->attr_type_ = value.attr_type_;
+    this->length_ = value.length();
+    return;
+  }
+
   switch (value.attr_type_) {
     case INTS: {
       set_int(value.get_int());
@@ -156,6 +198,7 @@ void Value::set_value(const Value &value)
 }
 
 void Value::set_date(const char* s) {
+  if(null_helper(s, strlen(s))) return;
   this->attr_type_ = DATES;
   int y,m,d;
   sscanf(s, "%d-%d-%d", &y, &m, &d);//not check return value eq 3, lex guarantee
@@ -167,16 +210,36 @@ void Value::set_date(const char* s) {
 }
 
 void Value::set_date(int s) {
+  if(null_helper(static_cast<const char*>(static_cast<const void*>(&s)), sizeof(s))) return;
   this->attr_type_ = DATES;
   this->num_value_.date_value_ = s;
 }
 
+void Value::set_null(bool s) {
+  if(s) {
+    this->num_value_.int_value_ = null_magic;
+  }
+  this->is_null_ = s;
+}
+
+void Value::set_length(int len) {
+  this->length_ = len;
+}
+
+
 int Value::get_date() const {
+  if(this->is_null_) {
+    return this->num_value_.int_value_;
+  }
   return this->num_value_.date_value_;
 }
 
 const char *Value::data() const
 {
+  if(this->is_null()) {
+    return (const char *)&num_value_;
+  }
+  
   switch (attr_type_) {
     case CHARS: {
       return str_value_.c_str();
@@ -189,6 +252,9 @@ const char *Value::data() const
 
 std::string Value::to_string() const
 {
+  if(this->is_null()) {
+    return std::string("NULL");
+  }
   std::stringstream os;
   switch (attr_type_) {
     case INTS: {
@@ -249,6 +315,10 @@ float parse_float(const char* c, int len) {
 
 int Value::compare(const Value &other) const
 {
+  if(this->is_null() || other.is_null()) {
+    return null_magic;
+  }
+
   if (this->attr_type_ == other.attr_type_) {
     switch (this->attr_type_) {
       case INTS: {
@@ -352,6 +422,10 @@ bool isMatch(const char* s, const char* p) {
 }
 
 int Value::like(const Value& v) const {
+  if(this->is_null() || v.is_null()) {
+    return null_magic;
+  }
+
   if (this->attr_type_ != CHARS) {
     LOG_WARN("not supported");
     return -1;
@@ -366,6 +440,10 @@ int Value::like(const Value& v) const {
 
 int Value::get_int() const
 {
+  if(this->is_null()) {
+    return num_value_.int_value_;
+  }
+
   switch (attr_type_) {
     case CHARS: {
       try {
@@ -397,6 +475,10 @@ int Value::get_int() const
 
 float Value::get_float() const
 {
+  if(this->is_null()) {
+    return *static_cast<const float*> (static_cast<const void*> (&num_value_.int_value_));
+  }
+
   switch (attr_type_) {
     case CHARS: {
       try {
@@ -428,11 +510,16 @@ float Value::get_float() const
 
 std::string Value::get_string() const
 {
+  //TODO how to fix get string with null
   return this->to_string();
 }
 
-bool Value::get_boolean() const
+int Value::get_boolean() const
 {
+  if(this->is_null()) {
+    return false;
+  }
+
   switch (attr_type_) {
     case CHARS: {
       try {
@@ -471,6 +558,10 @@ bool Value::get_boolean() const
     }
   }
   return false;
+}
+
+bool Value::is_null() const {
+  return this->is_null_;
 }
 
 bool Value::validate() const {

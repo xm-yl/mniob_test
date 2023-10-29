@@ -99,11 +99,16 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         IN
         EXISTS
         LIKE
+        ORDER
+        BY
+        ASC
         MAX
         MIN
         COUNT
         AVG
         SUM
+        NULL_T
+        IS
         EQ
         LT
         GT
@@ -119,6 +124,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   enum CompOp                       comp;
   enum AggrOp                       aggr_op;
   enum JoinType                     join_type;
+  OrderBySqlNode *                  order_by;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
@@ -132,9 +138,11 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   std::vector<std::string> *        index_list;
   std::vector<JoinTableSqlNode> *   join_table_list;
   std::string *                     is_unique;
+  std::vector<OrderBySqlNode> *     order_bys;
   char *                            string;
   int                               number;
   float                             floats;
+  bool                              bools;
 }
 
 %token <number> NUMBER
@@ -145,6 +153,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
+%type <bools>               attr_can_null
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
@@ -153,6 +162,9 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <comp>                comp_op_reverse
 %type <aggr_op>             aggr_op
 %type <join_type>           join_expr
+%type <order_by>            order_by_attr
+%type <order_bys>           order_by_attrs
+%type <order_bys>           order_by
 %type <rel_attr>            rel_attr
 %type <rel_attr>            aggr_func
 %type <attr_infos>          attr_def_list
@@ -378,23 +390,38 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type LBRACE number RBRACE attr_can_null
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      $$->can_null = $6;
       free($1);
     }
-    | ID type
+    | ID type attr_can_null
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      $$->can_null = $3;
       free($1);
     }
     ;
+attr_can_null:
+  /* empty */
+  {
+    $$ = true;
+  }
+  | NOT NULL_T {
+    $$ = false;
+  }
+  | NULL_T {
+    $$ = true;
+  }
+  ;
+
 number:
     NUMBER {$$ = $1;}
     ;
@@ -448,6 +475,10 @@ value:
       $$ = new Value();
       $$->set_date(tmp);
       free(tmp);
+    }
+    |NULL_T {
+      $$ = new Value();
+      $$->set_null(true);
     }
     |SSS {
       char *tmp = common::substr($1,1,strlen($1)-2);
@@ -581,8 +612,63 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 
+order_by_attr:
+  rel_attr
+  {
+    $$ = new OrderBySqlNode();
+    $$->rel_name = *$1;
+    delete $1;
+  }
+  | rel_attr ASC 
+  {
+    $$ = new OrderBySqlNode();
+    $$->rel_name = *$1;
+    delete $1;
+    $$->order_by = ORDER_ASC;
+  }
+  | rel_attr DESC
+  {
+    $$ = new OrderBySqlNode();
+    $$->rel_name = *$1;
+    delete $1;
+    $$->order_by = ORDER_DESC;
+  }
+  ;
+order_by_attrs:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | order_by_attr
+  {
+    $$ = new vector<OrderBySqlNode>();
+    $$->emplace_back(*$1);
+    delete $1;
+  }
+  | order_by_attr COMMA order_by_attrs {
+    if ($$ == nullptr) {
+      $$ = new std::vector<OrderBySqlNode>();
+    } else {
+      $$ = $3;
+    }
+    $$->emplace_back(*$1);
+    delete $1;
+  }
+  ;
+
+order_by:
+  /* empty */
+  {
+    $$ = nullptr;
+  }
+  | ORDER BY order_by_attrs
+  {
+    $$ = $3;
+  }
+  ;
+
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where
+    SELECT select_attr FROM ID rel_list where order_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -606,8 +692,14 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $6;
       }
       free($4);
+
+      if ($7 != nullptr) {
+        $$->selection.order_bys.swap(*$7);
+        std::reverse($$->selection.order_bys.begin(), $$->selection.order_bys.end());
+        delete $7;
+      } 
     }
-    | SELECT select_attr FROM ID join_table join_tables where
+    | SELECT select_attr FROM ID join_table join_tables where order_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -635,6 +727,11 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $7;
       }
       free($4);
+      if ($8 != nullptr) {
+        $$->selection.order_bys.swap(*$8);
+        std::reverse($$->selection.order_bys.begin(), $$->selection.order_bys.end());
+        delete $8;
+      }    
     }
     ;
 calc_stmt:
@@ -1015,6 +1112,8 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | NOT LIKE { $$ = NOT_LIKE_OP; }
     | LIKE { $$ = LIKE_OP; }
+    | IS { $$ = IS_OP; }
+    | IS NOT { $$ = IS_NOT_OP; }
     ;
 
 comp_op_reverse:

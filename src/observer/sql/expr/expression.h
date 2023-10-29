@@ -263,8 +263,8 @@ public:
    * compare the two tuple cells
    * @param value the result of comparison
    */
-  RC compare_value(const Value &left, const Value &right, bool &value) const;
-  
+  RC compare_value(const Value &left, const Value &right, Value &result_) const;
+
   //used for in, exists 
   RC compare_values(const Value&left, const std::vector<Value> & right, bool &result) const;
 private:

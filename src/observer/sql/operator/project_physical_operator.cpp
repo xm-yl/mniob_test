@@ -92,34 +92,41 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
   this->count += 1;
   RC rc = RC::SUCCESS;
   Tuple* tuple = current_tuple;
-  std::vector<float>& record = aggr_result_;
+
   std::vector<Value>& record_ = aggr_result__;
   const std::vector<AggrOp> aggr_ops = aggr_ops_;
-  if(aggr_result__.empty()){
+  if(record_.empty()){
     for(int i= 0; i< current_tuple->cell_num();i++){
       Value current_cell;
       current_tuple->cell_at(i,current_cell);
-      aggr_result__.push_back(current_cell);
+      record_.push_back(current_cell);
+      if(current_cell.is_null()) {
+        this->null_count++;
+        continue;
+      }
     }
   }
-  // if(aggr_result_.empty()){
-  //   //Tuple* set_tuple = new Tuple(current_tuple);
-  //   //aggr_tuple_.set_tuple(current_tuple);
-  //   for(int i = 0; i < current_tuple->cell_num(); i++){
-  //     aggr_result_.push_back(0);
-  //   }
-  //   aggr_result_.push_back(1);//作为是否初始化最大最小的标记
-  //   //is_init = true;
-  // }
   else{
     assert(tuple != nullptr);
     int cell_num = tuple->cell_num();
     for (int i = 0; i < cell_num; i++){
       Value value;
       rc = tuple->cell_at(i, value);
-      // if (rc != RC::SUCCESS) {
-      //   return rc;
-      // }
+
+      if(value.is_null()) {
+        this->null_count++;
+        continue;
+      }
+
+      if(record_[i].is_null()) {
+        if(value.attr_type() == INTS) {
+          record_[i].set_int(value.get_int());
+        } else {
+          record_[i].set_float(value.get_float());
+        }
+        continue;
+      }
+
       switch (aggr_ops[i]){
         case AggrOp::AGG_AVG:{
           if(value.attr_type() == AttrType::INTS){
@@ -132,6 +139,7 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
           }
         } break;
         case AggrOp::AGG_SUM:{
+
           if(value.attr_type() == AttrType::INTS){
             record_[i].set_int(record_[i].get_int() + value.get_int());
             // record[i] = record[i] + value.get_int();
@@ -145,68 +153,38 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
           AttrType tmp = value.attr_type();
           int result = record_[i].compare(value);
           if(result < 0) record_[i] = value;
-          // if(record[cell_num]){
-          //   record[cell_num] = 0;
-          //   if(value.attr_type() == AttrType::INTS){
-          //     record[i] = value.get_int();
-          //   }
-          //   else record[i] = value.get_float();
-          // }
-          // else{
-          //   if(value.attr_type() == AttrType::INTS){
-          //     int current = value.get_int();
-          //     if(current > record[i]) record[i] = current;
-          //   }
-          //   else{
-          //     float current = value.get_float();
-          //     if(current > record[i]) record[i] = current;
-          //   }
-          // }
         }break;
         case AggrOp::AGG_MIN:{
           int result = record_[i].compare(value);
           if(result > 0) record_[i] = value;
-          // if(record[cell_num]){
-          //   record[cell_num] = 0;
-          //   if(value.attr_type() == AttrType::INTS){
-          //     record[i] = value.get_int();
-          //   }
-          //   else record[i] = value.get_float();
-          // }
-          // else{
-          //   if(value.attr_type() == AttrType::INTS){
-          //     int current = value.get_int();
-          //     if(current < record[i]) record[i] = current;
-          //   }
-          //   else{
-          //     float current = value.get_float();
-          //     if(current < record[i]) record[i] = current;
-          //   }
-          // }
         } break;
       }
     }
   }
-  // min_init_token = true;
-  // max_init_token = true;
 }
 void ProjectPhysicalOperator::process_aggr_record(){
   const std::vector<AggrOp> aggr_ops = aggr_ops_;;
   for (int i = 0; i < aggr_result__.size(); i++){
+    int count_with_null = is_star_[i] ? count : count - null_count;
     switch (aggr_ops[i]){
       case AggrOp::AGG_COUNT:{
         aggr_result__[i].set_type(AttrType::FLOATS);
-        aggr_result__[i].set_float(count);
+        aggr_result__[i].set_float(count_with_null);
       } break;
       case AggrOp::AGG_AVG :{
         AttrType tmp = aggr_result__[i].attr_type();
-        if(tmp == AttrType::INTS){
-          float sum = aggr_result__[i].get_int();
+        if(count_with_null == 0) {
           aggr_result__[i].set_type(AttrType::FLOATS);
-          aggr_result__[i].set_float(sum/count);
+          aggr_result__[i].set_null(true);
+          continue;
+        }
+        if(tmp == AttrType::INTS){
+          double sum = aggr_result__[i].get_int();
+          aggr_result__[i].set_type(AttrType::FLOATS);
+          aggr_result__[i].set_float((float)(sum/count_with_null));
         }
         else{
-          aggr_result__[i].set_float(aggr_result__[i].get_float()/count);
+          aggr_result__[i].set_float(aggr_result__[i].get_float()/count_with_null);
         }
       } break;
     }
@@ -222,9 +200,10 @@ void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta
 }
 
 //存储需要聚合的字段
-void ProjectPhysicalOperator::add_aggregation(AggrOp aggr_op){
+void ProjectPhysicalOperator::add_aggregation(AggrOp aggr_op, bool is_star){
   //TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
   aggr_ops_.push_back(aggr_op);
+  is_star_.push_back(is_star);
   // aggr_tuple_.add_cell_spec(spec);
   // aggr_tuple_.add_aggr_op(aggr_op);
 }

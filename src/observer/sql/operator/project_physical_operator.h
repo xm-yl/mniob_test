@@ -33,7 +33,7 @@ public:
     
   }
   void add_projection(const Table *table, const FieldMeta *field);
-  void add_aggregation(const AggrOp aggr_op);
+  void add_aggregation(const AggrOp aggr_op, bool is_star);
   PhysicalOperatorType type() const override
   {
     return PhysicalOperatorType::PROJECT;
@@ -60,9 +60,14 @@ public:
   }
   Tuple *current_tuple() override;
 
+  std::vector<bool> is_star()const {
+    return is_star_;
+  }
+
 private:
   ProjectTuple tuple_;
   std::vector<AggrOp> aggr_ops_;
+  std::vector<bool> is_star_;
   std::vector<float> aggr_result_;
   //这里看看能不能写成AggregationTuple
   std::vector<Value> aggr_result__;
@@ -70,4 +75,5 @@ private:
   bool is_aggregate = false;
   bool finish_aggregate = false;
   int count = 0; 
+  int null_count = 0;
 };

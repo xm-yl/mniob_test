@@ -150,6 +150,28 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj.init_value(condition.left_value);
     filter_unit->set_left(filter_obj);
   }
+
+  if(comp == IS_OP || comp == IS_NOT_OP) {
+    //following IS or IS_NOT must be null
+    if(condition.right_is_attr) {
+      rc = RC::SQL_SYNTAX;
+      return rc;
+    }
+    if(condition.right_value.is_null() == false) {
+      rc = RC::SQL_SYNTAX;
+      return rc;
+    }
+  }
+
+  if (condition.right_is_attr) {
+    Table *table = nullptr;
+    const FieldMeta *field = nullptr;
+    rc = get_table_and_field(db, default_table, tables, condition.right_attr, table, field);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot find attr");
+      return rc;
+    }
+  }
   if (!condition.right_is_sub_query){
     if (condition.right_is_attr) {
       Table *table = nullptr;

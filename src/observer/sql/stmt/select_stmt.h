@@ -70,9 +70,20 @@ public:
     return this->on_conditions_;
   }
 
+  const std::vector<Field> &sort_fields() const {
+    return this->sort_fields_;
+  }
+  const std::vector<bool> &is_asc() const {
+    return this->is_asc_;
+  }
+
 private:
   std::vector<Field> query_fields_;
   std::vector<Table *> tables_;
   FilterStmt *filter_stmt_ = nullptr;
+  // std::vector<std::string> aggr_fields_;
+  // std::vector<AggrOp> aggr_ops_;
+  std::vector<Field> sort_fields_;
+  std::vector<bool> is_asc_;
   std::vector<FilterStmt *> on_conditions_; // memory leak  ?
 };

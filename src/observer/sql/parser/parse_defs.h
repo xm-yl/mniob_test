@@ -27,7 +27,7 @@ struct SelectSqlNode;
 /**
  * @defgroup SQLParser SQL Parser 
  */
-#undef COUNT
+//#undef COUNT
 enum AggrOp{
   AGG_MAX,
   AGG_MIN,
@@ -35,6 +35,11 @@ enum AggrOp{
   AGG_AVG, 
   AGG_SUM,
   NO_AGGR_OP
+};
+
+enum OrderBy {
+  ORDER_ASC,
+  ORDER_DESC,
 };
 /**
  * @brief 描述一个属性
@@ -51,6 +56,11 @@ struct RelAttrSqlNode
   RelAttrSqlNode() {
     aggr_op = AggrOp::NO_AGGR_OP;
   }
+};
+
+struct OrderBySqlNode {
+  RelAttrSqlNode rel_name;
+  OrderBy order_by;
 };
 
 enum JoinType {
@@ -76,6 +86,8 @@ enum CompOp
   NOT_IN_OP,    /// "id not in ..."
   EXISTS_OP,    /// "exists"
   NOT_EXISTS_OP,/// "not exists"
+  IS_OP,
+  IS_NOT_OP,
   NO_OP
 };
 
@@ -124,6 +136,7 @@ struct SelectSqlNode
   std::vector<std::string>        relations;     ///< 查询的表
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::vector<ConditionSqlNode>>   on_conditions;
+  std::vector<OrderBySqlNode>     order_bys;
   bool validate() {
     for (size_t i = 0;i < conditions.size(); i++) {
       if(conditions[i].validate() == false) {
@@ -220,6 +233,7 @@ struct AttrInfoSqlNode
   AttrType    type;       ///< Type of attribute
   std::string name;       ///< Attribute name
   size_t      length;     ///< Length of attribute
+  bool        can_null;
 };
 
 /**
