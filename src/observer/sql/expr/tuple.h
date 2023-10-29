@@ -141,7 +141,30 @@ public:
     return str;
   }
 };
+class AggregateTuple : public Tuple{
+public:
+  virtual int cell_num() const override{
+    return values_.size();
+  }
+  
+  virtual RC cell_at(int index , Value& cell) const override{
+    cell = values_.at(index);
+    return RC::SUCCESS;
+  }
 
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const override{
+    return RC::UNIMPLENMENT;
+  }
+  void set_values(const std::vector<Value>& values){
+    values_ = values;
+  }
+  
+  virtual RC make_cell_specs(std::vector<TupleCellSpec> &ret_specs) {
+    return RC::UNIMPLENMENT;
+  }
+private:
+  std::vector<Value> values_;
+};
 /**
  * @brief 一行数据的元组
  * @ingroup Tuple

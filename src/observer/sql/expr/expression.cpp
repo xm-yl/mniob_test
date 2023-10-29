@@ -86,6 +86,32 @@ ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_
 ComparisonExpr::~ComparisonExpr()
 {}
 
+RC ComparisonExpr::compare_values(const Value &left, const std::vector<Value> & right, bool &result) const{
+  RC rc = RC::SUCCESS;
+  switch (comp_) {
+    case CompOp::IN_OP:{
+      auto it = std::find_if(right.begin(),right.end(),
+        [&,left](const Value &r){return !left.compare(r);});
+      result = (it != right.end());
+    }break;
+    case CompOp::NOT_IN_OP:{
+      auto it = std::find_if(right.begin(),right.end(),
+        [&,left](const Value &r){return !left.compare(r);});
+      result = (it == right.end());
+    }break;
+    case CompOp::EXISTS_OP:{
+      result = !right.empty();
+    }break;
+    case CompOp::NOT_EXISTS_OP:{
+      result = right.empty();
+    }break;
+    default: {
+      LOG_WARN("unsupported comparison. %d", comp_);
+      rc = RC::INTERNAL;
+    } break;
+  }
+  return rc;
+}
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, Value &result_) const
 {
   RC rc = RC::SUCCESS;
@@ -165,23 +191,42 @@ RC ComparisonExpr::try_get_value(Value &cell) const
 
 RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 {
-  Value left_value;
-  Value right_value;
-
-  RC rc = left_->get_value(tuple, left_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
+  RC rc = RC::SUCCESS;
+  if(comp_ == CompOp::IN_OP     || comp_ == CompOp::NOT_IN_OP     ||
+     comp_ == CompOp::EXISTS_OP || comp_ == CompOp::NOT_EXISTS_OP)  {
+    
+    Value left_value;
+    rc = left_->get_value(tuple, left_value); // only need when in op;
+    if (rc != RC::SUCCESS && (comp_ == CompOp::IN_OP || comp_ == CompOp::NOT_IN_OP)) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    
+    ASSERT(right_->type() == ExprType::SUBQUERY,"in or exists only used when subquerys");
+    std::vector<Value> right_values = dynamic_cast<SubQueryExpr*>(right_.get())->values();
+    bool bool_value = false;
+    rc = compare_values(left_value, right_values, bool_value);
+    if (rc == RC::SUCCESS) {
+      value.set_boolean(bool_value);
+    }
   }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
+  else{
+    Value left_value;
+    Value right_value;
+
+    rc = left_->get_value(tuple, left_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    rc = right_->get_value(tuple, right_value);
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
+      return rc;
+    }
+
+    rc = compare_value(left_value, right_value, value);
   }
-
-  bool bool_value = false;
-  rc = compare_value(left_value, right_value, value);
-
   return rc;
 }
 

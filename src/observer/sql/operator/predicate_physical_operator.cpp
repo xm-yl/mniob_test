@@ -33,20 +33,87 @@ void PredicatePhysicalOperator::debug_print_cnt_info_with_depth(int dep) {
 
 RC PredicatePhysicalOperator::open(Trx *trx)
 {
-  if (children_.size() != 1) {
-    LOG_WARN("predicate operator must has one child");
+  if (children_.size() == 0) {
+    LOG_WARN("predicate operator must has at least one child");
     return RC::INTERNAL;
   }
+  RC rc = RC::SUCCESS;
+  for(int i = 0; i < children_.size(); i++){ 
+    rc = children_[i]->open(trx);
 
-  return children_[0]->open(trx);
+    // if(i != (children_.size() -1) && children_[i]->current_tuple()->cell_num() > 1){
+    //   LOG_WARN("Multiple cell in sub query is not allowed for now");
+    //   return RC::INTERNAL;
+    // }
+  }
+  return rc;
+}
+RC PredicatePhysicalOperator::init_sub_query_expr(){
+  // Predicate 中的expr的结构如下
+  // conjunctionepxr -> std::vector<ComparisonExpr>
+  //                                |
+  //                                ComparisonExpr  -> (leftexpr ,  rightexpr)
+
+  // 我们认为子查询的出现就是当 rightexpr 的type为SUBQUERY的时候。
+  RC rc = RC::SUCCESS;
+  int children_exprs_num = 0;
+  int sub_query_count    = 0; 
+  ConjunctionExpr* conj_expr = dynamic_cast<ConjunctionExpr *>(expression_.get());
+  //转型成功，说明存在未能被下移的filter条件。
+  if(conj_expr != nullptr){
+    children_exprs_num = conj_expr->children().size();
+  }
+  //auto children_exprs = conj_expr->children();
+  LOG_DEBUG("Receive %d children which could have sub query",children_exprs_num);
+  
+  //check if contains subquery, the last is the main query so dont travese it.
+  for(int i = 0; i < children_exprs_num; i++){
+    LOG_DEBUG(" %d th children has sub query", i);
+    ComparisonExpr* children_expr = static_cast<ComparisonExpr*> (conj_expr->children().at(i).get());
+    Expression*     right_expr    = children_expr->right().get();
+    
+    // Begin subquery if expr contains sub query
+    if(right_expr->type() == ExprType::SUBQUERY){  
+      PhysicalOperator* oper = children_.at(sub_query_count++).get();
+      
+      //get value by next()
+      while(RC::SUCCESS == (rc = oper->next())){
+        Tuple * tuple = oper->current_tuple();
+        if(nullptr == tuple){
+          rc = RC::INTERNAL;
+          LOG_WARN("failed to get tuple from operator");
+          return rc;
+        }
+        Value value;
+        
+        // 目前不允许子查询返回多列
+        if(1 != tuple->cell_num()){
+          rc = RC::INTERNAL;
+          LOG_WARN("Multiple field in sub query is not allowed");
+          return rc;
+        }
+        rc = tuple->cell_at(0,value);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        dynamic_cast<SubQueryExpr*>(right_expr)->push_back(value);
+      }
+    }
+  }
+  return rc;
 }
 
 RC PredicatePhysicalOperator::next()
 {
+  if(!sub_query_init){
+    init_sub_query_expr();
+    sub_query_init = true;
+  }
+
   this->debug_cnt++;
   RC rc = RC::SUCCESS;
-  PhysicalOperator *oper = children_.front().get();
-
+  PhysicalOperator *oper = children_.back().get();
+  
   while (RC::SUCCESS == (rc = oper->next())) {
     Tuple *tuple = oper->current_tuple();
     if (nullptr == tuple) {
@@ -70,11 +137,15 @@ RC PredicatePhysicalOperator::next()
 
 RC PredicatePhysicalOperator::close()
 {
-  children_[0]->close();
-  return RC::SUCCESS;
+  RC rc = RC::SUCCESS;
+  for(int i = 0; i < children_.size(); i++){
+    if(children_[i] == nullptr) continue;  
+    rc = children_[i]->close();
+  }
+  return rc;
 }
 
 Tuple *PredicatePhysicalOperator::current_tuple()
 {
-  return children_[0]->current_tuple();
+  return children_.back()->current_tuple();
 }

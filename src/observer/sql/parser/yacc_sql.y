@@ -96,6 +96,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         INFILE
         EXPLAIN
         NOT
+        IN
+        EXISTS
         LIKE
         ORDER
         BY
@@ -157,6 +159,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <comp>                comp_op_reverse
 %type <aggr_op>             aggr_op
 %type <join_type>           join_expr
 %type <order_by>            order_by_attr
@@ -170,7 +173,6 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      where
 %type <condition_list>      update_exprs
 %type <condition_list>      condition_list
-%type <rel_attr_list>       select_aggr_attr
 %type <condition_list>      on_condition_exprs
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
@@ -666,27 +668,7 @@ order_by:
   ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_aggr_attr FROM ID rel_list where 
-    {
-      $$ = new ParsedSqlNode(SCF_SELECT);
-      if ($2 != nullptr) {
-        $$->selection.attributes.swap(*$2);
-        delete $2;
-      }
-      if ($5 != nullptr) {
-        $$->selection.relations.swap(*$5);
-        delete $5;
-      }
-      $$->selection.relations.push_back($4);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
-
-      if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
-        delete $6;
-      }
-      free($4);
-    }
-    | SELECT select_attr FROM ID rel_list where order_by
+    SELECT select_attr FROM ID rel_list where order_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -822,6 +804,15 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
+    | aggr_func aggr_func_list{
+      if ($2 != nullptr){
+        $$ = $2;
+      } else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      $$->emplace_back(*$1);
+      delete $1;
+    }
     ;
 
 aggr_op:
@@ -841,16 +832,7 @@ aggr_op:
     $$ = AGG_COUNT;
   }
   ;
-select_aggr_attr:
-  aggr_func aggr_func_list{
-    if ($2 != nullptr){
-      $$ = $2;
-    } else {
-      $$ = new std::vector<RelAttrSqlNode>;
-    }
-    $$->emplace_back(*$1);
-    delete $1;
-  };
+
 aggr_func:
   aggr_op LBRACE '*' RBRACE {
     $$ = new RelAttrSqlNode;
@@ -1011,6 +993,114 @@ condition:
       delete $1;
       delete $3;
     }
+    | EXISTS LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($3->selection);
+      $$->comp = EXISTS_OP;
+
+      delete $3;
+    }
+    | NOT EXISTS LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($4->selection);
+      $$->comp = NOT_EXISTS_OP;
+
+      delete $4;
+    }
+    | rel_attr IN LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($4->selection);
+      $$->comp = IN_OP;
+
+      delete $1;
+      delete $4;
+    }
+    | rel_attr NOT IN LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($5->selection);
+      $$->comp = NOT_IN_OP;
+
+      delete $1;
+      delete $5;
+    }
+    | rel_attr comp_op LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($4->selection);
+      $$->comp = $2;
+
+      delete $1;
+      delete $4;
+    }
+    | value comp_op LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_attr;
+      $$->left_value = *$1;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($4->selection);
+      $$->comp = $2;
+
+      delete $1;
+      delete $4;
+    }
+    | LBRACE select_stmt RBRACE comp_op_reverse value
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_attr;
+      $$->left_value = *$5;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($2->selection);
+      $$->comp = $4;
+
+      delete $2;
+      delete $5;
+    }
+    | LBRACE select_stmt RBRACE comp_op_reverse rel_attr
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$5;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($2->selection);
+      $$->comp = $4;
+
+      delete $2;
+      delete $5;
+    }
     ;
 
 comp_op:
@@ -1026,6 +1116,14 @@ comp_op:
     | IS NOT { $$ = IS_NOT_OP; }
     ;
 
+comp_op_reverse:
+    EQ { $$ = EQUAL_TO; }
+    | LT { $$ = GREAT_THAN; }
+    | GT { $$ = LESS_THAN; }
+    | LE { $$ = GREAT_EQUAL; }
+    | GE { $$ = LESS_EQUAL; }
+    | NE { $$ = NOT_EQUAL; }
+    ;
 load_data_stmt:
     LOAD DATA INFILE SSS INTO TABLE ID 
     {

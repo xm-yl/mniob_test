@@ -40,9 +40,11 @@ public:
   RC next() override;
   RC close() override;
   void debug_print_cnt_info_with_depth(int dep) override;
-
+  // get the values of sub_query;
+  RC init_sub_query_expr();
   Tuple *current_tuple() override;
 
 private:
   std::unique_ptr<Expression> expression_;
+  bool sub_query_init = false;
 };

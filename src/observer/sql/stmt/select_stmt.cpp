@@ -26,6 +26,9 @@ SelectStmt::~SelectStmt()
     delete filter_stmt_;
     filter_stmt_ = nullptr;
   }
+  for (int i = 0; i < static_cast<int>(on_conditions_.size()); i++){
+    delete on_conditions_[i];
+  }
 }
 //聚合操作与类型检查
 static bool check_type_match(AttrType field_type, AggrOp aggr_op){

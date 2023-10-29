@@ -102,6 +102,8 @@ JOIN                                    RETURN_TOKEN(JOIN);
 WHERE                                   RETURN_TOKEN(WHERE);
 AND                                     RETURN_TOKEN(AND);
 NOT                                     RETURN_TOKEN(NOT);
+IN                                      RETURN_TOKEN(IN);
+EXISTS                                  RETURN_TOKEN(EXISTS);
 LIKE                                    RETURN_TOKEN(LIKE);
 INSERT                                  RETURN_TOKEN(INSERT);
 INTO                                    RETURN_TOKEN(INTO);

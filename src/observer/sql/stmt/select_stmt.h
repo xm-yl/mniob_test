@@ -35,7 +35,7 @@ class SelectStmt : public Stmt
 {
 public:
   SelectStmt() = default;
-  ~SelectStmt() override;
+  virtual ~SelectStmt() override;
 
   StmtType type() const override
   {
@@ -83,7 +83,7 @@ private:
   FilterStmt *filter_stmt_ = nullptr;
   // std::vector<std::string> aggr_fields_;
   // std::vector<AggrOp> aggr_ops_;
-  std::vector<FilterStmt *> on_conditions_;
   std::vector<Field> sort_fields_;
   std::vector<bool> is_asc_;
+  std::vector<FilterStmt *> on_conditions_; // memory leak  ?
 };
