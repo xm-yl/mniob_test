@@ -138,6 +138,14 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     right_value.set_value(right_.value);
   }
 
+
+  if(comp_op_ != IS_OP && comp_op_ != IS_NOT_OP) {
+    //not null relevant comparison but with null result
+    if(left_value.is_null() || right_value.is_null()) {
+      return false;
+    }
+  }
+
   int cmp_result = left_value.compare(right_value);
 
   switch (comp_op_) {
@@ -154,6 +162,21 @@ bool DefaultConditionFilter::filter(const Record &rec) const
     case GREAT_THAN:
       return cmp_result > 0;
 
+    case LIKE_OP: {
+      //right must be template, left must be tuple cell
+      return (left_value.like(right_value) == true);
+    } break;
+    case NOT_LIKE_OP: {
+      return (left_value.like(right_value) == false);
+    } break;
+    case IS_OP: {
+      //ASSERT(right.is_null(), "is opertor right value must be null");
+      return left_value.is_null();
+    } break;
+    case IS_NOT_OP: {
+      //ASSERT(right.is_null(), "is opertor right value must be null");
+      return left_value.is_null() == false;
+    } break;
     default:
       break;
   }

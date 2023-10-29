@@ -105,6 +105,8 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         COUNT
         AVG
         SUM
+        NULL_T
+        IS
         EQ
         LT
         GT
@@ -138,6 +140,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
   char *                            string;
   int                               number;
   float                             floats;
+  bool                              bools;
 }
 
 %token <number> NUMBER
@@ -148,6 +151,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 //非终结符
 
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
+%type <bools>               attr_can_null
 %type <number>              type
 %type <condition>           condition
 %type <value>               value
@@ -384,23 +388,38 @@ attr_def_list:
     ;
     
 attr_def:
-    ID type LBRACE number RBRACE 
+    ID type LBRACE number RBRACE attr_can_null
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
+      $$->can_null = $6;
       free($1);
     }
-    | ID type
+    | ID type attr_can_null
     {
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = 4;
+      $$->can_null = $3;
       free($1);
     }
     ;
+attr_can_null:
+  /* empty */
+  {
+    $$ = true;
+  }
+  | NOT NULL_T {
+    $$ = false;
+  }
+  | NULL_T {
+    $$ = true;
+  }
+  ;
+
 number:
     NUMBER {$$ = $1;}
     ;
@@ -454,6 +473,10 @@ value:
       $$ = new Value();
       $$->set_date(tmp);
       free(tmp);
+    }
+    |NULL_T {
+      $$ = new Value();
+      $$->set_null(true);
     }
     |SSS {
       char *tmp = common::substr($1,1,strlen($1)-2);
@@ -999,6 +1022,8 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | NOT LIKE { $$ = NOT_LIKE_OP; }
     | LIKE { $$ = LIKE_OP; }
+    | IS { $$ = IS_OP; }
+    | IS NOT { $$ = IS_NOT_OP; }
     ;
 
 load_data_stmt:

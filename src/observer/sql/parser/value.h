@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 
 #include <string>
 
+const int null_magic = 0xaaaaaaaa;
+const char null_magic_byte = 0xaa;
 /**
  * @brief 属性的类型
  * 
@@ -54,6 +56,7 @@ public:
 
   Value(const Value &other) = default;
   Value &operator=(const Value &other) = default;
+  bool null_helper(const char* s, int len);
 
   void set_type(AttrType type)
   {
@@ -71,6 +74,7 @@ public:
   void set_value(const Value &value);
   void set_date(const char *s);
   void set_date(int s);
+  void set_null(bool s);
 
   std::string to_string() const;
 
@@ -95,8 +99,9 @@ public:
   int get_int() const;
   float get_float() const;
   std::string get_string() const;
-  bool get_boolean() const;
+  int get_boolean() const;
   int get_date() const;
+  bool is_null() const;
 
   bool validate() const;
   int like(const Value &v) const;
@@ -111,5 +116,6 @@ private:
     bool bool_value_;
     int date_value_;
   } num_value_;
+  bool is_null_ = false;
   std::string str_value_;
 };

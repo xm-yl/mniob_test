@@ -33,7 +33,7 @@ RC OrderByPhysicalOperator::next() {
   OrderByTuple* now_tuple;
   Tuple* ret_tuple;
   RC rc;
-  LOG_DEBUG("extract tuple info start");
+  //LOG_DEBUG("extract tuple info start");
   while((rc = child->next()) == RC::SUCCESS) {
     ret_tuple = child->current_tuple();
     now_tuple = new OrderByTuple();
@@ -44,7 +44,7 @@ RC OrderByPhysicalOperator::next() {
     this->tuples_.push_back(now_tuple);
   }
 
-  LOG_DEBUG("extract tuple info complete");
+  //LOG_DEBUG("extract tuple info complete");
   
   if(0 == static_cast<int>(this->tuples_.size())) {
     return RC::RECORD_EOF;
@@ -52,7 +52,7 @@ RC OrderByPhysicalOperator::next() {
 
   this->get_order_field_specs();
 
-  LOG_DEBUG("size of order by tuples:%d", this->tuples_.size());
+  //LOG_DEBUG("size of order by tuples:%d", this->tuples_.size());
 
   std::vector<int> cell_at_index(cell_specs_.size());
   const std::vector<TupleCellSpec> table_spec = this->tuples_[0]->specs();
@@ -71,17 +71,32 @@ RC OrderByPhysicalOperator::next() {
       Value l_value, r_value;
       lhs->cell_at(cell_at_index[i], l_value);
       rhs->cell_at(cell_at_index[i], r_value);
+
+      if(l_value.is_null() && r_value.is_null()) {
+        continue;
+      } else if(l_value.is_null() && (!r_value.is_null())) {
+        // l_value is null and we want null to be on the top of the order by when ASC vise versa.
+        // so it returns false when ASC to make the l_value on the top of the order by
+        // it returns true when DESC to make the l_value on the bottom of the order by
+        return !is_asc_[i];
+      } else if ((!l_value.is_null()) && r_value.is_null()) {
+        //deduce type error
+        return is_asc_[i] == true;
+      }
+
+      //l_value and r_value not null
       int cmp_result = l_value.compare(r_value);
       if(cmp_result == 0) continue;
+
       if(is_asc_[i]) {
-       return cmp_result < 0;
+        return cmp_result < 0;
       } else {
         return cmp_result > 0;
       }
     }
     return false;
   });
-  LOG_DEBUG("finish order by");
+  //LOG_DEBUG("finish order by");
 
   this->tuple_ = this->tuples_[now_tuple_index++];
   return RC::SUCCESS;

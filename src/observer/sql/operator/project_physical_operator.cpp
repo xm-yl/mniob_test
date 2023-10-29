@@ -97,6 +97,10 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
       // if (rc != RC::SUCCESS) {
       //   return rc;
       // }
+      if(value.is_null()) {
+        this->null_count++;
+        continue;
+      }
       switch (aggr_ops[i]){
         case AggrOp::AGG_AVG:{
           if(value.attr_type() == AttrType::INTS){
@@ -121,7 +125,7 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
         case AggrOp::AGG_MAX:{
           AttrType tmp = value.attr_type();
           int result = record_[i].compare(value);
-          if(result < 0) record_[i] = value;
+          if(result != null_magic && result < 0) record_[i] = value;
           // if(record[cell_num]){
           //   record[cell_num] = 0;
           //   if(value.attr_type() == AttrType::INTS){
@@ -142,7 +146,7 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
         }break;
         case AggrOp::AGG_MIN:{
           int result = record_[i].compare(value);
-          if(result > 0) record_[i] = value;
+          if(result != null_magic && result > 0) record_[i] = value;
           // if(record[cell_num]){
           //   record[cell_num] = 0;
           //   if(value.attr_type() == AttrType::INTS){

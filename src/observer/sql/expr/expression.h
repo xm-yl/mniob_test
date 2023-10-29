@@ -219,7 +219,7 @@ public:
    * compare the two tuple cells
    * @param value the result of comparison
    */
-  RC compare_value(const Value &left, const Value &right, bool &value) const;
+  RC compare_value(const Value &left, const Value &right, Value &result_) const;
 
 private:
   CompOp comp_;

@@ -86,11 +86,20 @@ ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_
 ComparisonExpr::~ComparisonExpr()
 {}
 
-RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
+RC ComparisonExpr::compare_value(const Value &left, const Value &right, Value &result_) const
 {
   RC rc = RC::SUCCESS;
-  int cmp_result = left.compare(right);
-  result = false;
+
+  result_.set_type(BOOLEANS);
+  if(comp_ != IS_OP && comp_ != IS_NOT_OP) {
+    //not null relevant comparison but with null result
+    if(left.is_null() || right.is_null()) {
+      result_.set_null(true);
+      return rc;
+    }
+  }
+
+  bool result = false;
   switch (comp_) {
     case EQUAL_TO: {
       result = (0 == left.compare(right));
@@ -117,11 +126,20 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
     case NOT_LIKE_OP: {
       result = (left.like(right) == false);
     } break;
+    case IS_OP: {
+      ASSERT(right.is_null(), "is opertor right value must be null");
+      result = left.is_null();
+    } break;
+    case IS_NOT_OP: {
+      ASSERT(right.is_null(), "is opertor right value must be null");
+      result = left.is_null() == false;
+    } break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);
       rc = RC::INTERNAL;
     } break;
   }
+  result_.set_boolean(result);
 
   return rc;
 }
@@ -135,11 +153,9 @@ RC ComparisonExpr::try_get_value(Value &cell) const
     const Value &right_cell = right_value_expr->get_value();
 
     bool value = false;
-    RC rc = compare_value(left_cell, right_cell, value);
+    RC rc = compare_value(left_cell, right_cell, cell);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to compare tuple cells. rc=%s", strrc(rc));
-    } else {
-      cell.set_boolean(value);
     }
     return rc;
   }
@@ -164,10 +180,8 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
 
   bool bool_value = false;
-  rc = compare_value(left_value, right_value, bool_value);
-  if (rc == RC::SUCCESS) {
-    value.set_boolean(bool_value);
-  }
+  rc = compare_value(left_value, right_value, value);
+
   return rc;
 }
 

@@ -68,4 +68,5 @@ private:
   std::vector<Value> aggr_result__;
   bool is_aggregate = false;
   int count = 0; 
+  int null_count = 0;
 };
