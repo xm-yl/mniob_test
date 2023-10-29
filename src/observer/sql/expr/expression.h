@@ -172,7 +172,13 @@ public:
   virtual ~SubQueryExpr() = default;
 
   RC get_value(const Tuple &tuple, Value &value) const override{
-    return RC::UNIMPLENMENT;
+    // 当试图从subquery中拿一个值出来的时候，如果查询结果有多行，那么就禁止这次偶作。
+    if(this->value_num() != 1){
+      LOG_WARN("Only use when aggregation func is used and subquery has single value. And at this time =,<,>,<> can be used for subQ. However sub_query get %d values", this->value_num());
+      return RC::INTERNAL;
+    }
+    value = values_.front();
+    return RC::SUCCESS;
   }
 //TODO: WORKINT IN PROGRESS
 public:

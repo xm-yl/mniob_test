@@ -38,9 +38,13 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     return RC::INTERNAL;
   }
   RC rc = RC::SUCCESS;
-  for(int i = 0; i < children_.size(); i++){
-    if(children_[i]) continue;  
+  for(int i = 0; i < children_.size(); i++){ 
     rc = children_[i]->open(trx);
+
+    // if(i != (children_.size() -1) && children_[i]->current_tuple()->cell_num() > 1){
+    //   LOG_WARN("Multiple cell in sub query is not allowed for now");
+    //   return RC::INTERNAL;
+    // }
   }
   return rc;
 }
@@ -52,21 +56,25 @@ RC PredicatePhysicalOperator::init_sub_query_expr(){
 
   // 我们认为子查询的出现就是当 rightexpr 的type为SUBQUERY的时候。
   RC rc = RC::SUCCESS;
+  int children_exprs_num = 0;
+  int sub_query_count    = 0; 
   ConjunctionExpr* conj_expr = dynamic_cast<ConjunctionExpr *>(expression_.get());
-  auto children_exprs = conj_expr->children();
-  int children_exprs_num = children_exprs.size();
-
-  LOG_DEBUG("Receive %d children which could have sub query",children_exprs_num - 1);
+  //转型成功，说明存在未能被下移的filter条件。
+  if(conj_expr != nullptr){
+    children_exprs_num = conj_expr->children().size();
+  }
+  //auto children_exprs = conj_expr->children();
+  LOG_DEBUG("Receive %d children which could have sub query",children_exprs_num);
   
   //check if contains subquery, the last is the main query so dont travese it.
-  for(int i = 0; i < children_exprs_num - 1; i++){
+  for(int i = 0; i < children_exprs_num; i++){
     LOG_DEBUG(" %d th children has sub query", i);
-    ComparisonExpr* children_expr = static_cast<ComparisonExpr*> (children_exprs.at(i).get());
+    ComparisonExpr* children_expr = static_cast<ComparisonExpr*> (conj_expr->children().at(i).get());
     Expression*     right_expr    = children_expr->right().get();
     
     // Begin subquery if expr contains sub query
     if(right_expr->type() == ExprType::SUBQUERY){  
-      PhysicalOperator* oper = children_.at(i).get();
+      PhysicalOperator* oper = children_.at(sub_query_count++).get();
       
       //get value by next()
       while(RC::SUCCESS == (rc = oper->next())){
@@ -77,9 +85,12 @@ RC PredicatePhysicalOperator::init_sub_query_expr(){
           return rc;
         }
         Value value;
+        
+        // 目前不允许子查询返回多列
         if(1 != tuple->cell_num()){
           rc = RC::INTERNAL;
           LOG_WARN("Multiple field in sub query is not allowed");
+          return rc;
         }
         rc = tuple->cell_at(0,value);
         if (rc != RC::SUCCESS) {

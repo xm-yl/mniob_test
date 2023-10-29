@@ -23,6 +23,7 @@ See the Mulan PSL v2 for more details. */
 class Db;
 class Table;
 class FieldMeta;
+class SelectStmt;
 
 struct FilterObj 
 {
@@ -106,7 +107,7 @@ public:
     return filter_units_;
   }
 
-  const std::vector<SelectStmt *> sub_querys() const
+  const std::vector<SelectStmt *> &sub_querys() const
   {
     return sub_querys_;
   }

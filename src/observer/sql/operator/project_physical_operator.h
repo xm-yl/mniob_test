@@ -66,6 +66,8 @@ private:
   std::vector<float> aggr_result_;
   //这里看看能不能写成AggregationTuple
   std::vector<Value> aggr_result__;
+  AggregateTuple aggr_tuple_;
   bool is_aggregate = false;
+  bool finish_aggregate = false;
   int count = 0; 
 };

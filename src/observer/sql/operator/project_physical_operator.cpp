@@ -41,13 +41,30 @@ RC ProjectPhysicalOperator::open(Trx *trx)
 }
 
 RC ProjectPhysicalOperator::next()
-{
+{ 
+  RC rc = RC::SUCCESS;
   if (children_.empty()) {
     return RC::RECORD_EOF;
   }
   this->debug_cnt++;
-  RC rc = children_[0]->next();
-  if(rc!=RC::SUCCESS && is_aggregate) process_aggr_record();
+  if (is_aggregate && !finish_aggregate){
+    while(RC::SUCCESS == (children_[0]->next())){
+      tuple_.set_tuple(children_[0]->current_tuple());
+      aggregate(&tuple_);
+    }
+    process_aggr_record();
+    finish_aggregate = true;
+    rc = RC::SUCCESS;
+  }
+  else if(!is_aggregate){
+    rc = children_[0]->next();
+    if(rc!=RC::SUCCESS) return rc;
+  }
+  else if(is_aggregate && finish_aggregate){
+    return RC::RECORD_EOF;
+  }
+  // RC rc = children_[0]->next();
+  // if(rc!=RC::SUCCESS && is_aggregate) process_aggr_record();
   return rc;
 }
 
@@ -59,9 +76,15 @@ RC ProjectPhysicalOperator::close()
   return RC::SUCCESS;
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
-{
-  tuple_.set_tuple(children_[0]->current_tuple());
-  if(is_aggregate)aggregate(&tuple_);
+{ 
+  if(is_aggregate){
+    aggr_tuple_.set_values(aggr_result__);
+    return &aggr_tuple_;
+  }
+  else{
+    tuple_.set_tuple(children_[0]->current_tuple());
+    return &tuple_;
+  }
   return &tuple_;
 }
 void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
@@ -170,25 +193,26 @@ void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
 void ProjectPhysicalOperator::process_aggr_record(){
   const std::vector<AggrOp> aggr_ops = aggr_ops_;;
   for (int i = 0; i < aggr_result__.size(); i++){
-      switch (aggr_ops[i]){
-        case AggrOp::AGG_COUNT:{
+    switch (aggr_ops[i]){
+      case AggrOp::AGG_COUNT:{
+        aggr_result__[i].set_type(AttrType::FLOATS);
+        aggr_result__[i].set_float(count);
+      } break;
+      case AggrOp::AGG_AVG :{
+        AttrType tmp = aggr_result__[i].attr_type();
+        if(tmp == AttrType::INTS){
+          float sum = aggr_result__[i].get_int();
           aggr_result__[i].set_type(AttrType::FLOATS);
-          aggr_result__[i].set_float(count);
-        } break;
-        case AggrOp::AGG_AVG :{
-          AttrType tmp = aggr_result__[i].attr_type();
-          if(tmp == AttrType::INTS){
-            float sum = aggr_result__[i].get_int();
-            aggr_result__[i].set_type(AttrType::FLOATS);
-            aggr_result__[i].set_float(sum/count);
-          }
-          else{
-            aggr_result__[i].set_float(aggr_result__[i].get_float()/count);
-          }
-        } break;
-      }
+          aggr_result__[i].set_float(sum/count);
+        }
+        else{
+          aggr_result__[i].set_float(aggr_result__[i].get_float()/count);
+        }
+      } break;
     }
+  }
 }
+
 void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta *field_meta)
 {
   // 对单表来说，展示的(alias) 字段总是字段名称，

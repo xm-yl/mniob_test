@@ -51,6 +51,7 @@ RC ConjunctionSimplificationRule::rewrite(std::unique_ptr<Expression> &expr, boo
         child_exprs.erase(iter);
       } else {
         // always be false
+        // TODO 这里的rewrite是不是有点问题，我觉得应该是把当前的保留而不是front() ?
         std::unique_ptr<Expression> child_expr = std::move(child_exprs.front());
         child_exprs.clear();
         expr = std::move(child_expr);
@@ -69,14 +70,15 @@ RC ConjunctionSimplificationRule::rewrite(std::unique_ptr<Expression> &expr, boo
       }
     }
   }
-  if (child_exprs.size() == 1) {
-    LOG_TRACE("conjunction expression has only 1 child");
-    std::unique_ptr<Expression> child_expr = std::move(child_exprs.front());
-    child_exprs.clear();
-    expr = std::move(child_expr);
+  //  TODO 这里现在即使conj 只有一个我也不把他提前了，为了让后面的类型转换好些一点。
+  // if (child_exprs.size() == 1) {
+  //   LOG_TRACE("conjunction expression has only 1 child");
+  //   std::unique_ptr<Expression> child_expr = std::move(child_exprs.front());
+  //   child_exprs.clear();
+  //   expr = std::move(child_expr);
 
-    change_made = true;
-  }
+  //   change_made = true;
+  // }
 
   return rc;
 }

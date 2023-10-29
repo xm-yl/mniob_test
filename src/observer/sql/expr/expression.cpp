@@ -85,15 +85,18 @@ ComparisonExpr::ComparisonExpr(CompOp comp, unique_ptr<Expression> left, unique_
 
 ComparisonExpr::~ComparisonExpr()
 {}
-RC ComparisonExpr::compare_values(const Value&left, const std::vector<Value> & right, bool &result) const{
+
+RC ComparisonExpr::compare_values(const Value &left, const std::vector<Value> & right, bool &result) const{
   RC rc = RC::SUCCESS;
   switch (comp_) {
     case CompOp::IN_OP:{
-      auto it = std::find(right.begin(),right.end(),[&,left](const Value& r){return !left.compare(r);});
+      auto it = std::find_if(right.begin(),right.end(),
+        [&,left](const Value &r){return !left.compare(r);});
       result = (it != right.end());
     }break;
     case CompOp::NOT_IN_OP:{
-      auto it = std::find(right.begin(),right.end(),[&,left](const Value& r){return !left.compare(r);});
+      auto it = std::find_if(right.begin(),right.end(),
+        [&,left](const Value &r){return !left.compare(r);});
       result = (it == right.end());
     }break;
     case CompOp::EXISTS_OP:{
@@ -177,6 +180,12 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
      comp_ == CompOp::EXISTS_OP || comp_ == CompOp::NOT_EXISTS_OP)  {
     
     Value left_value;
+    rc = left_->get_value(tuple, left_value); // only need when in op;
+    if (rc != RC::SUCCESS && (comp_ == CompOp::IN_OP || comp_ == CompOp::NOT_IN_OP)) {
+      LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
+      return rc;
+    }
+    
     ASSERT(right_->type() == ExprType::SUBQUERY,"in or exists only used when subquerys");
     std::vector<Value> right_values = dynamic_cast<SubQueryExpr*>(right_.get())->values();
     bool bool_value = false;
