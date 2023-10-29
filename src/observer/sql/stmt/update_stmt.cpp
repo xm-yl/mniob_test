@@ -12,6 +12,8 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/5/22.
 //
 
+#include <algorithm>
+
 #include "sql/stmt/update_stmt.h"
 #include "sql/stmt/filter_stmt.h"
 #include "common/log/log.h"
@@ -51,6 +53,15 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
   std::vector<std::string> update_attribute = update.attribute_name;
   for(int i = 0; i < update.attribute_name.size(); i++){
     const FieldMeta *meta = table->table_meta().field(update.attribute_name.at(i).c_str());
+    bool field_nullable = meta->nullable();
+
+    if(field_nullable && update.value.at(i).is_null()) {
+      //TODO num_value_ changes with int
+      int attr_len = std::min(meta->len(), (int)sizeof(int));;
+      const_cast<UpdateSqlNode&>(update).value[i].set_type(meta->type());
+      const_cast<UpdateSqlNode&>(update).value[i].set_length(attr_len);
+    }
+
     if(nullptr == meta){
       return RC::SCHEMA_FIELD_NOT_EXIST;
     }

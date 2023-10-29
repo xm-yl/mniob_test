@@ -222,6 +222,10 @@ void Value::set_null(bool s) {
   this->is_null_ = s;
 }
 
+void Value::set_length(int len) {
+  this->length_ = len;
+}
+
 
 int Value::get_date() const {
   if(this->is_null_) {
@@ -249,7 +253,7 @@ const char *Value::data() const
 std::string Value::to_string() const
 {
   if(this->is_null()) {
-    return std::string("null");
+    return std::string("NULL");
   }
   std::stringstream os;
   switch (attr_type_) {
