@@ -79,6 +79,10 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       update_exprs.push_back(update_expr);
       Stmt* update_sub_query_stmt;
       RC rc = SelectStmt::create(db,*update.update_conditions.at(i).right_sub_query,update_sub_query_stmt);
+      if(rc != RC::SUCCESS){
+        LOG_WARN("Create sub query stmt failed");
+        return rc;
+      }
       update_sub_query_stmts.push_back(static_cast<SelectStmt*>(update_sub_query_stmt));
     }
     else{
