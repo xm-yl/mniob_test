@@ -80,7 +80,7 @@ public:
       bool null_data = true;
       //TODO num_value_ int_value_ related modifications 
       for(int j = 0;j < std::min(attr_lengths_[i], (int)sizeof(int)); j++) {
-        if(v2[j] != null_magic_byte) {
+        if(right_oprand[j] != null_magic_byte) {
           null_data = false;
           break;
         }
