@@ -81,8 +81,11 @@ RC UpdatePhysicalOperator::init_sub_query_expr() {
     // 如果子查询没查到东西,就返回一个null
     if(tuple_num_from_sub_query == 0){
       Value value;
-      value.set_null(true);
       value.set_type(update_fields_.at(subquery_expr_index)->type());
+      //TODO num_value_ int_value_
+      value.set_length(std::min(update_fields_.at(subquery_expr_index)->len(), (int)sizeof(int)));
+      value.set_null(true);
+      
       dynamic_cast<SubQueryExpr*>(sub_query_expr)->push_back(value);
     }
     subquery_expr_index++;

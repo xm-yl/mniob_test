@@ -261,10 +261,12 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<Logical
   }
 
   unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table,update_stmt->update_exprs(),update_stmt->update_fields()));
-  for(int i = 0; i < update_stmt->update_sub_querys().size(); i++){
+  int now_sub_query_i = 0;
+  for(int i = 0; i < update_stmt->update_exprs().size(); i++){
     // 构建子查询树
+    
     if(update_stmt->update_exprs().at(i)->type() == ExprType::SUBQUERY){
-      SelectStmt &sub_query_stmt = *(update_stmt->update_sub_querys().at(i));
+      SelectStmt &sub_query_stmt = *(update_stmt->update_sub_querys().at(now_sub_query_i++));
       unique_ptr<LogicalOperator> update_sub_query;
       rc = LogicalPlanGenerator::create_plan(&sub_query_stmt, update_sub_query);
       if(rc != RC::SUCCESS){
