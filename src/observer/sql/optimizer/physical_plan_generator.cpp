@@ -264,25 +264,29 @@ RC PhysicalPlanGenerator::create_plan(InsertLogicalOperator &insert_oper, unique
 
 RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique_ptr<PhysicalOperator> &oper){
   vector<unique_ptr<LogicalOperator>> &child_opers = update_oper.children();
-  unique_ptr<PhysicalOperator> child_physical_oper;
+  //unique_ptr<PhysicalOperator> child_physical_oper;
   
   //get data from logical oper
   Table *table = update_oper.table();
-  std::vector<const Value *>update_values = update_oper.update_values();
-  std::vector<const FieldMeta*> update_fields = update_oper.update_fields();
+  const std::vector<Expression *> &update_exprs = update_oper.update_exprs();
+  const std::vector<const FieldMeta*> &update_fields = update_oper.update_fields();
   RC rc = RC::SUCCESS;
-  if (!child_opers.empty()) {
-    LogicalOperator *child_oper = child_opers.front().get();
+  oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(table,update_exprs,update_fields));
+  
+  // 构建查询子树
+  for(int i = 0; i < child_opers.size(); i++){
+    unique_ptr<PhysicalOperator> child_physical_oper;
+    LogicalOperator *child_oper = child_opers.at(i).get();
     rc = create(*child_oper, child_physical_oper);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to create physical operator. rc=%s", strrc(rc));
       return rc;
     }
+    if (child_physical_oper){
+      oper->add_child(std::move(child_physical_oper));
+    }
   }
-  oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(table,update_values,update_fields));
-   if (child_physical_oper) {
-    oper->add_child(std::move(child_physical_oper));
-  }
+  
   return rc;
 
 }

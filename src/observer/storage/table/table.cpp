@@ -500,6 +500,13 @@ RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_meta
 }
 
 RC Table::update_record(Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields){
+  //check null
+  for(int i = 0; i < update_values.size(); i++){
+    if(update_values.at(i)->is_null() && !update_fields.at(i)->nullable()){
+      LOG_WARN("Trying to update a not-null field to null");
+      return RC::INTERNAL;
+    }
+  }
   RC rc = RC::SUCCESS;
   char * r = new char[table_meta_.record_size()];
   memcpy(r, record.data(), table_meta_.record_size());
@@ -522,9 +529,22 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
       const char * field_name = field_meta->name();
     
       //check the validation of the value type and name.
-      if(strcmp(field_name,update_field_meta->name())==0 && field_type==update_value_type){
-          update_field_length = field_meta->len();
-          break;
+      if(strcmp(field_name,update_field_meta->name())==0){
+        update_field_length = field_meta->len();
+        if(field_type==update_value_type);
+        else{
+          LOG_DEBUG("Type Convert Happen int->float");
+          if(field_type==AttrType::FLOATS && update_value_type == AttrType::INTS && !update_values.at(i)->is_null()){
+            float new_value = update_values.at(i)->get_int();
+            const_cast<Value*>(update_values.at(i))->set_float(new_value);
+          }
+          else if(field_type==AttrType::INTS && update_value_type ==AttrType::FLOATS && !update_values.at(i)->is_null()){
+            LOG_DEBUG("Type Convert Happen float->int");
+            int new_value = update_values.at(i)->get_float();
+            const_cast<Value*>(update_values.at(i))->set_int(new_value);
+          }
+        }
+        break;
       }
       update_location += field_meta->len();
     }

@@ -260,8 +260,21 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<Logical
     return rc;
   }
 
-  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table,update_stmt->update_values(),update_stmt->update_fields()));
+  unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table,update_stmt->update_exprs(),update_stmt->update_fields()));
+  for(int i = 0; i < update_stmt->update_sub_querys().size(); i++){
+    // 构建子查询树
+    if(update_stmt->update_exprs().at(i)->type() == ExprType::SUBQUERY){
+      SelectStmt &sub_query_stmt = *(update_stmt->update_sub_querys().at(i));
+      unique_ptr<LogicalOperator> update_sub_query;
+      rc = LogicalPlanGenerator::create_plan(&sub_query_stmt, update_sub_query);
+      if(rc != RC::SUCCESS){
+        LOG_WARN("Create logical plan of sub query failed.");
+        return rc;
+      }
+      update_oper->add_child(std::move(update_sub_query));
+    }
 
+  } 
   if (predicate_oper) {
     predicate_oper->add_child(std::move(table_get_oper));
     update_oper->add_child(std::move(predicate_oper));

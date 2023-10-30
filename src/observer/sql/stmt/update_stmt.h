@@ -27,8 +27,10 @@ class UpdateStmt : public Stmt
 {
 public:
   UpdateStmt() = default;
-  UpdateStmt(Table *table, std::vector<const Value *> values, int value_amount, std::vector<const FieldMeta*> update_fields,FilterStmt* filter_stmt);
-  
+  UpdateStmt(Table *table, const std::vector<Expression*> &update_exprs, const std::vector<SelectStmt*>& update_sub_querys , 
+              int value_amount, const std::vector<const FieldMeta*>& update_fields, FilterStmt* filter_stmt);
+  virtual ~UpdateStmt() override;
+
 public:
   static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
   
@@ -41,9 +43,12 @@ public:
   {
     return table_;
   }
-  std::vector<const Value *>update_values() const
-  {
-    return update_values_;
+  std::vector<Expression*> update_exprs() const {
+    return update_exprs_;
+  }
+
+  std::vector<SelectStmt*> update_sub_querys() const {
+    return update_sub_querys_;
   }
   int value_amount() const
   {
@@ -52,13 +57,16 @@ public:
   std::vector<const FieldMeta*> update_fields() const{
     return update_fields_;
   }
+
+
   FilterStmt* filter_stmt() const{
     return filter_stmt_;
   }
 private:
-  Table *table_ = nullptr;
-  std::vector<const Value *>update_values_;
-  int value_amount_ = 0;
-  std::vector<const FieldMeta*> update_fields_;
-  FilterStmt* filter_stmt_ = nullptr;
+  Table *table_ = nullptr;                          //< 更新的表 
+  std::vector<Expression*>  update_exprs_;          //< 更新值表达式 (可能是Value 也可能是 SubQuery), 这个内存要自己管理 TODO
+  std::vector<SelectStmt*>   update_sub_querys_;    //< 更新的子表达式(用在 SubQueryExpr中) 
+  int value_amount_ = 0;                            //< 更新几个
+  std::vector<const FieldMeta*> update_fields_;     //< 更新的列
+  FilterStmt* filter_stmt_ = nullptr;               //< 过滤谓词
 };
