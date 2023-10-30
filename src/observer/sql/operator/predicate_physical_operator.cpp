@@ -54,23 +54,22 @@ RC PredicatePhysicalOperator::init_sub_query_expr(){
   // conjunctionepxr -> std::vector<ComparisonExpr>
   //                                |
   //                                ComparisonExpr  -> (leftexpr ,  rightexpr)
-
-  // 我们认为子查询的出现就是当 rightexpr 的type为SUBQUERY的时候。
+  //                                                                SUBQUERY
+  // 子查询的出现就是当 rightexpr 的type为SUBQUERY的时候。
+  // children_exprs_num 表示了 Comparision 表达式的数量
+  // sub_query_count    表示需要调用子查询的count数 这个数字最终应该等于 children_.size() - 1;
   RC rc = RC::SUCCESS;
   int children_exprs_num = 0;
   int sub_query_count    = 0; 
   ConjunctionExpr* conj_expr = dynamic_cast<ConjunctionExpr *>(expression_.get());
-  //转型成功，说明存在未能被下移的filter条件。
   if(conj_expr != nullptr){
     children_exprs_num = conj_expr->children().size();
   }
-  //auto children_exprs = conj_expr->children();
   LOG_DEBUG("Receive %d children which could have sub query",children_exprs_num);
   
   //check if contains subquery, the last is the main query so dont travese it.
   for(int i = 0; i < children_exprs_num; i++){
-    LOG_DEBUG(" %d th children has sub query", i);
-    if(children_.at(i) == nullptr) continue;
+
     ComparisonExpr* children_expr = static_cast<ComparisonExpr*> (conj_expr->children().at(i).get());
     Expression*     right_expr    = children_expr->right().get();
     
@@ -79,6 +78,7 @@ RC PredicatePhysicalOperator::init_sub_query_expr(){
       if(!dynamic_cast<SubQueryExpr*>(right_expr)->values().empty()){
         continue;
       }
+      LOG_DEBUG(" %d th children has sub query", i);
       PhysicalOperator* oper = children_.at(sub_query_count++).get();
       
       //get value by next()

@@ -189,28 +189,16 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   vector<unique_ptr<LogicalOperator>> &children_opers = pred_oper.children();
   ASSERT(children_opers.size() >= 1, "predicate logical operator's sub oper number should be 1");
   RC rc = RC::SUCCESS;
-  // LogicalOperator &child_oper = *children_opers.front();
-
-  // unique_ptr<PhysicalOperator> child_phy_oper;
-  // RC rc = create(child_oper, child_phy_oper);
-  // if (rc != RC::SUCCESS) {
-  //   LOG_WARN("failed to create child operator of predicate operator. rc=%s", strrc(rc));
-  //   return rc;
-  // }
 
   vector<unique_ptr<Expression>> &expressions = pred_oper.expressions(); 
   ASSERT(expressions.size() == 1, "predicate logical operator's children should be 1");
 
   //TODO 
   unique_ptr<Expression> expression = std::move(expressions.front());  // 这个expression 可能已经由rewrite改写过conjuctionExpr
-  // LOG_DEBUG("The real type of expression is %s",typeid(expression.get()).name());
-  // ConjunctionExpr* test_expr = dynamic_cast<ConjunctionExpr*>(expression.get());
-  // if(test_expr == nullptr)
-  // assert(test_expr != nullptr);
   oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));
+  
+  // 创建predicate下面的查询树,这个数量和需要调用(子查询+主查询)的数量相等.
   for(int i = 0; i < children_opers.size(); i++){
-    // if(children_opers.at(i) == nullptr) oper->add_child(nullptr);
-    // else{
       LogicalOperator &child_oper = *children_opers.at(i);
       unique_ptr<PhysicalOperator> child_phy_oper;
       rc = create(child_oper, child_phy_oper);
