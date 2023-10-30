@@ -63,17 +63,17 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
       const std::string domain = a.attributes.front().attribute_name;
       
       //子查询的语法检查
-      // 1. 没有聚合函数时候使用等于类的比较        (比较不支持多行)
-      // 2. 没有聚合函数时候使用*查询且表列数大于1   (不支持多列)
+      // 1. 没有聚合函数时候使用等于类的比较        (比较不支持多行,在后面解决)
+      // 2. 没有聚合函数时候使用*查询且表列数大于1   (不支持多列,在后面解决)
       // 3. 查询列数大于1                          (不支持多列)
-      if(this_op>=EQUAL_TO && this_op <=GREAT_THAN && this_aggr_op==NO_AGGR_OP){
-        LOG_WARN("Didnt support multi row for comparsion =,<,>,<> and so on");
-        return RC::INTERNAL;        
-      }
-      if(this_aggr_op==NO_AGGR_OP && (domain == std::string("*") && field_num != 1)){
-        LOG_WARN("Didnt support * for subquery without aggregation");
-        return RC::INTERNAL;
-      }
+      // if(this_op>=EQUAL_TO && this_op <=GREAT_THAN && this_aggr_op==NO_AGGR_OP){
+      //   LOG_WARN("Didnt support multi row for comparsion =,<,>,<> and so on");
+      //   return RC::INTERNAL;        
+      // }
+      // if(this_aggr_op==NO_AGGR_OP && (domain == std::string("*") && field_num != 1)){
+      //   LOG_WARN("Didnt support * for subquery without aggregation");
+      //   return RC::INTERNAL;
+      // }
       if(a.attributes.size() > 1){
         LOG_WARN("Didnt support multiple domain for subquery");
         return RC::INTERNAL;

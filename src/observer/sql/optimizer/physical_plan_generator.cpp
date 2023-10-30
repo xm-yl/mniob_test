@@ -209,6 +209,12 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
       oper->add_child(std::move(child_phy_oper));
     // }
   }
+  PredicatePhysicalOperator* oper_tmp = static_cast<PredicatePhysicalOperator*>(oper.get());
+  // RC rc2 = oper_tmp->init_sub_query_expr();
+  // if(rc2 != RC::SUCCESS || rc2 != RC::RECORD_EOF){
+  //   LOG_WARN("SubQuery format error");
+  //   return rc2;
+  // }
   return rc;
 }
 
