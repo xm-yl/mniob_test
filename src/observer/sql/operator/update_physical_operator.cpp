@@ -26,7 +26,6 @@ RC UpdatePhysicalOperator::open(Trx* trx){
   rc = init_sub_query_expr();
   if(rc == RC::RECORD_EOF) rc = RC::SUCCESS;
   if(rc != RC::SUCCESS) return rc;
-  rc = init_update_values();
   return rc;
 }
 RC UpdatePhysicalOperator::init_update_values(){
@@ -35,7 +34,17 @@ RC UpdatePhysicalOperator::init_update_values(){
     Value* update_value = new Value();
     RowTuple fake_tuple;
 
-    // 这里如果get了一个空行会有什么问题 ?
+
+    if(update_exprs_.at(i)->type() == ExprType::VALUE);
+    else if(update_exprs_.at(i)->type() == ExprType::SUBQUERY) {
+
+      if(static_cast<SubQueryExpr*>(update_exprs_.at(i))->get_field_num() > 1) return RC::INTERNAL; 
+      if(static_cast<SubQueryExpr*>(update_exprs_.at(i))->get_tuple_num() > 1) return RC::INTERNAL;
+    }
+    else {
+      LOG_WARN("Unsupport Expr type");
+      return RC::INTERNAL;
+    }
     rc = update_exprs_.at(i)->get_value(fake_tuple,*update_value);
     if(rc != RC::SUCCESS) return rc;
     update_values_.push_back(update_value);
@@ -53,7 +62,7 @@ RC UpdatePhysicalOperator::init_sub_query_expr() {
     while(update_exprs_.at(subquery_expr_index)->type() != ExprType::SUBQUERY) subquery_expr_index++;
     Expression* sub_query_expr = update_exprs_.at(subquery_expr_index);
     PhysicalOperator* oper = children_.at(i).get();
-
+    SubQueryExpr* this_expr = static_cast<SubQueryExpr*>(sub_query_expr);
     //调用子查询,将值放到Expr中
     int tuple_num_from_sub_query = 0;
     int field_num_from_sub_query = 0;
@@ -73,11 +82,10 @@ RC UpdatePhysicalOperator::init_sub_query_expr() {
       if (rc != RC::SUCCESS) {
         return rc;
       }
-      dynamic_cast<SubQueryExpr*>(sub_query_expr)->push_back(value);
+      this_expr->push_back(value);
     }
-    if(field_num_from_sub_query > 1) return RC::INTERNAL;
-    if(tuple_num_from_sub_query > 1) return RC::INTERNAL;
-    
+    // if(field_num_from_sub_query > 1) return RC::INTERNAL;
+    // if(tuple_num_from_sub_query > 1) return RC::INTERNAL;
     // 如果子查询没查到东西,就返回一个null
     if(tuple_num_from_sub_query == 0){
       Value value;
@@ -86,8 +94,11 @@ RC UpdatePhysicalOperator::init_sub_query_expr() {
       value.set_length(std::min(update_fields_.at(subquery_expr_index)->len(), (int)sizeof(int)));
       value.set_null(true);
       
-      dynamic_cast<SubQueryExpr*>(sub_query_expr)->push_back(value);
+      this_expr->push_back(value);
     }
+    // Set the statistic result of the sub query.
+    this_expr->set_field_num(std::max(field_num_from_sub_query,1));
+    this_expr->set_tuple_num(std::max(tuple_num_from_sub_query,1));
     subquery_expr_index++;
   }
   return rc;
@@ -114,10 +125,18 @@ RC UpdatePhysicalOperator::next()
       LOG_WARN("failed to get current record: %s", strrc(rc));
       return rc;
     }
-
+    
+    // init update values from sub query
+    if(!update_values_init){
+      rc = init_update_values();
+      update_values_init = false;
+      if(rc != RC::SUCCESS) {
+        LOG_WARN("Init update values failed!");
+        return rc;
+      }
+    }
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record &record = row_tuple->record();
-
     rc = trx_->update_record(table_, record, update_values_, update_fields_);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));

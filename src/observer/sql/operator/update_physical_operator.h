@@ -40,4 +40,5 @@ private:
   std::vector<const FieldMeta*> update_fields_; 
   std::vector<const Value*>     update_values_;
   bool sub_query_init = false;
+  bool update_values_init = false;
 };
