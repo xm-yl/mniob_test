@@ -185,6 +185,65 @@ RC MvccTrx::delete_record(Table * table, Record &record)
   return RC::SUCCESS;
 }
 
+RC MvccTrx::update_record(Table *table, Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields) {
+  Record updated_record;
+  //make a copy of original and update it
+  RC rc = RC::SUCCESS;
+  const TableMeta &table_meta_ = table->table_meta();
+  char * r = new char[table_meta_.record_size()];
+  memcpy(r, record.data(), table_meta_.record_size());
+
+  // update the values one by one.
+  const int sys_field_num = table_meta_.sys_field_num();
+  const int field_num = table_meta_.field_num() - sys_field_num;
+  for(int i = 0; i < update_fields.size(); i++ ){
+    AttrType update_value_type = update_values.at(i)->attr_type();
+    const FieldMeta *update_field_meta = update_fields.at(i);
+    int update_location = 0;
+    int update_field_length = 0;
+    
+    //Get the offset of updating values.(update_location)
+    for(int j = 0; j < field_num;j++){
+      const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
+      AttrType field_type = field_meta->type();
+      const char * field_name = field_meta->name();
+    
+      //check the validation of the value type and name.
+      if(strcmp(field_name,update_field_meta->name())==0 && field_type==update_value_type){
+          update_field_length = field_meta->len();
+          break;
+      }
+      update_location += field_meta->len();
+    }
+    
+    // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
+    // update by memcpy
+    char *tmp = new char[update_field_length];
+    memset(tmp, 0, sizeof(char) * update_field_length);
+    memcpy(tmp, update_values.at(i)->data(), min(update_field_length, update_values.at(i)->length()));
+    // LOG_DEBUG("field_length is %d,Update location is %d",update_field_length,update_location);
+    memcpy(r + update_location, tmp, update_field_length);
+    delete []tmp;
+  }
+
+  if(OB_FAIL(rc)) {
+    //LOG_WARN("mvcc update record failed: rc", strrc(rc));
+    return rc;
+  }
+
+  updated_record.set_data_owner(r, table_meta_.record_size());
+  rc = this->delete_record(table, record);
+  if(OB_FAIL(rc)) {
+    LOG_WARN("mvcc update record failed: rc", strrc(rc));
+    return rc;
+  }
+  rc = this->insert_record(table, updated_record);
+  if(OB_FAIL(rc)) {
+    LOG_WARN("mvcc update record failed: rc", strrc(rc));
+  }
+  return rc;
+}
+
 RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
 {
   Field begin_field;
