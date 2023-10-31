@@ -225,11 +225,13 @@ void Value::set_null(bool s) {
 bool Value::can_interpret(AttrType a) const {
   if(this->attr_type() == a) return true;
   if(this->attr_type() == AttrType::INTS){
-    if(a = AttrType::FLOATS)return true;
+    if(a == AttrType::FLOATS)return true;
+    if(a == AttrType::CHARS) return true;
     else return false;
   }
   if(this->attr_type() == AttrType::FLOATS){
     if(a == AttrType::INTS) return true;
+    if(a == AttrType::CHARS) return true;
     else return false;
   }
   return false;
