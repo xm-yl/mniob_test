@@ -11,7 +11,7 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by WangYunlai on 2023/06/28.
 //
-
+#include <cmath>
 #include <sstream>
 #include <cctype>
 #include <algorithm>
@@ -234,6 +234,11 @@ bool Value::can_interpret(AttrType a) const {
     if(a == AttrType::CHARS) return true;
     else return false;
   }
+  if(this->attr_type() == AttrType::CHARS){
+    if(a == AttrType::INTS) return true;
+    if(a == AttrType::FLOATS) return true;
+    else return false;
+  }
   return false;
 }
 bool Value::can_interpret_and_set(AttrType a, int len){
@@ -271,7 +276,7 @@ bool Value::can_interpret_and_set(AttrType a, int len){
   else if(this->attr_type() == AttrType::FLOATS){
     //this floats -> int
     if(a == AttrType::INTS){
-      this->set_int(this->get_float());
+      this->set_int(std::round(this->get_float()));
       return true;
     }
     //this floats -> chars
@@ -288,7 +293,55 @@ bool Value::can_interpret_and_set(AttrType a, int len){
     }
     else return false;
   }
+  else if(this->attr_type() == AttrType::CHARS){
+    //this chars -> int
+    if(a == AttrType::INTS){
+      std::string s = this->get_string();
+      float tmp;
+      if(!string2float(s,tmp)) return false;     
+      this->set_int(std::round(tmp));
+      return true;
+    }
+    //this chars -> floats
+    else if(a == AttrType::FLOATS){
+      std::string s = this->get_string();
+      float tmp;
+      if(!string2float(s,tmp)) return false; 
+      this->set_float(tmp);
+      return true;
+    }
+    else return false;
+  }
   else return false;
+}
+bool Value::string2float(const std::string& b, float& result){
+  std::string a;
+  if(b.empty()) return false;
+  if(b.at(0) == '-') a = std::string(b, 1, b.length() - 1);
+  else a = b;
+  int dot_pos = a.length();
+  if(a.length() == 0) return false;
+  if(a.length() == 1 && a.at(0) == '.') return false;
+  for(int i = 0; i < a.length(); i++){
+    if(a.at(i) == '.'){
+      if(dot_pos!= a.length()) return false;
+      else dot_pos = i;
+    }
+    else if(a.at(i) <= '9' && a.at(i) >='1') continue;
+    else return false;
+  }
+  result = 0.0;
+  for(int i = 0; i < dot_pos; i++){
+    result = result * 10 + a.at(i) - '0';
+  }
+  float tmp = 0;
+  for(int i = a.length() - 1; i > dot_pos; i--){
+    tmp = tmp/10 + a.at(i) - '0';
+  }
+  tmp /= 10;
+  result += tmp;
+  if(b.at(0) == '-') result = -result;
+  return true;
 }
 bool Value::can_interpret_and_set(const Value &v) {
   // true : can an set , false: can not and do nothing.
