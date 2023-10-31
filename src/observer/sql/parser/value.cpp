@@ -222,6 +222,91 @@ void Value::set_null(bool s) {
   this->is_null_ = s;
 }
 
+bool Value::can_interpret(AttrType a) const {
+  if(this->attr_type() == a) return true;
+  if(this->attr_type() == AttrType::INTS){
+    if(a = AttrType::FLOATS)return true;
+    else return false;
+  }
+  if(this->attr_type() == AttrType::FLOATS){
+    if(a == AttrType::INTS) return true;
+    else return false;
+  }
+  return false;
+}
+bool Value::can_interpret_and_set(AttrType a, int len){
+  if(!can_interpret(a)) return false;
+  
+  //can interpret to any type if this is null
+  if(this->is_null()){
+    this->set_type(a);
+    this->set_length(len);
+    return true;
+  }
+  //do nothing when type is the same.
+  if(this->attr_type() == a) return true;
+  
+  //this int -> floats
+  else if(this->attr_type() == AttrType::INTS){
+    if(a == AttrType::FLOATS){
+      this->set_float(this->get_int());
+      return true;
+    }
+    else return false;
+  }
+  
+  //this floats -> int
+  else if(this->attr_type() == AttrType::FLOATS){
+    if(a == AttrType::INTS){
+      this->set_int(this->get_float());
+      return true;
+    }
+    else return false;
+  }
+  else return false;
+}
+bool Value::can_interpret_and_set(const Value &v) {
+  // true : can an set , false: can not and do nothing.
+  if(!can_interpret(v)) return false;
+  
+  //can interpret to any type if this is null
+  if(this->is_null()){
+    this->set_type(v.attr_type());
+    this->set_length(v.length());
+    return true;
+  }
+  //do nothing when type is the same.
+  if(this->attr_type() == v.attr_type()) return true;
+  
+  //this int -> floats
+  else if(this->attr_type() == AttrType::INTS){
+    if(v.attr_type() == AttrType::FLOATS){
+      this->set_float(this->get_int());
+      return true;
+    }
+    else return false;
+  }
+  
+  //this floats -> int
+  else if(this->attr_type() == AttrType::FLOATS){
+    if(v.attr_type() == AttrType::INTS){
+      this->set_int(this->get_float());
+      return true;
+    }
+    else return false;
+  }
+  else return false; 
+}
+
+bool Value::can_interpret(const Value &v) const {
+  if (this->is_null()) {
+    return true;
+  }
+
+  return this->can_interpret(v.attr_type());
+}
+
+
 void Value::set_length(int len) {
   this->length_ = len;
 }

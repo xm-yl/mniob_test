@@ -103,6 +103,10 @@ public:
   int get_boolean() const;
   int get_date() const;
   bool is_null() const;
+  bool can_interpret(AttrType a) const;
+  bool can_interpret(const Value &v) const;
+  bool can_interpret_and_set(AttrType a, int len);
+  bool can_interpret_and_set(const Value &v);
 
   bool validate() const;
   int like(const Value &v) const;

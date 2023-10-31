@@ -534,15 +534,23 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
         if(field_type==update_value_type);
         else{
           LOG_DEBUG("Type Convert Happen int->float");
-          if(field_type==AttrType::FLOATS && update_value_type == AttrType::INTS && !update_values.at(i)->is_null()){
-            float new_value = update_values.at(i)->get_int();
-            const_cast<Value*>(update_values.at(i))->set_float(new_value);
-          }
-          else if(field_type==AttrType::INTS && update_value_type ==AttrType::FLOATS && !update_values.at(i)->is_null()){
-            LOG_DEBUG("Type Convert Happen float->int");
-            int new_value = update_values.at(i)->get_float();
-            const_cast<Value*>(update_values.at(i))->set_int(new_value);
-          }
+          bool a = const_cast<Value*>(update_values.at(i))->can_interpret_and_set(field_type, update_field_length);
+          if(!a) LOG_PANIC("???");
+          // if(field_type==AttrType::FLOATS && update_value_type == AttrType::INTS && !update_values.at(i)->is_null()){
+          //   float new_value = update_values.at(i)->get_int();
+          //   const_cast<Value*>(update_values.at(i))->set_float(new_value);
+          // }
+          // else if(field_type==AttrType::INTS && update_value_type ==AttrType::FLOATS && !update_values.at(i)->is_null()){
+          //   LOG_DEBUG("Type Convert Happen float->int");
+          //   int new_value = update_values.at(i)->get_float();
+          //   const_cast<Value*>(update_values.at(i))->set_int(new_value);
+          // }
+          // else if(update_values.at(i)->is_null()){
+          //   LOG_DEBUG("NULL Type converts!");
+          //   const_cast<Value*>(update_values.at(i))->set_type(field_type);
+          //   const_cast<Value*>(update_values.at(i))->set_length(std::min(update_field_length,(int)sizeof(int)));
+          // }
+          // TODO : check other type 
         }
         break;
       }

@@ -112,9 +112,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
         const_cast<Value&>(value).set_type(meta->type());
         const_cast<Value&>(value).set_length(attr_len);
       }
-
-
-      if(meta->type() != value.attr_type()){
+      else if(!field_nullable && value.is_null()) return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      if(!const_cast<Value&>(value).can_interpret_and_set(meta->type(),std::min((int)sizeof(int),meta->len()))){
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
     }
