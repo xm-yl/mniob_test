@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 #include "sql/stmt/stmt.h"
 #include "sql/expr/expression.h"
-
+#include "sql/stmt/select_stmt.h"
 class Db;
 class Table;
 class FieldMeta;
@@ -45,8 +45,10 @@ struct FilterObj
     is_sub_query = false;
     this->value = value;
   }
-  void init_values(){
+  void init_values(const std::vector<Value> & values){
     is_attr = false;
+    is_sub_query = true;
+    this->values = values;
   }
 };
 

@@ -46,6 +46,10 @@ public:
   
   //遍历结束后处理聚合记录，算平均和COUNT等
   void process_aggr_record();
+  
+  //当子树没有返回结果时,用0和null填充返回结果
+  void pad_aggr_result();
+
   void set_aggregate(){
     is_aggregate = true;
   }

@@ -54,6 +54,11 @@ RC ProjectPhysicalOperator::next()
     }
     process_aggr_record();
     finish_aggregate = true;
+
+    //TODO 这里的边界条件还是有点问题, 如果聚合函数没有接受到数据,这里应应该返回EOF
+    if (aggr_result__.empty()){
+      pad_aggr_result();
+    }
     rc = RC::SUCCESS;
   }
   else if(!is_aggregate){
@@ -63,8 +68,6 @@ RC ProjectPhysicalOperator::next()
   else if(is_aggregate && finish_aggregate){
     return RC::RECORD_EOF;
   }
-  // RC rc = children_[0]->next();
-  // if(rc!=RC::SUCCESS && is_aggregate) process_aggr_record();
   return rc;
 }
 
@@ -86,6 +89,24 @@ Tuple *ProjectPhysicalOperator::current_tuple()
     return &tuple_;
   }
   return &tuple_;
+}
+void ProjectPhysicalOperator::pad_aggr_result(){
+  for (int i = 0; i < aggr_ops_.size(); i++){
+    switch(aggr_ops_.at(i)){
+      case AggrOp::AGG_COUNT:{
+        Value tmp;
+        tmp.set_float(0);
+        aggr_result__.push_back(tmp);
+      } break;
+      default:{
+        Value tmp;
+        tmp.set_null(true);
+        tmp.set_type(AttrType::FLOATS);
+        tmp.set_length(sizeof(float));
+        aggr_result__.push_back(tmp);
+      } break;
+    }
+  }
 }
 void ProjectPhysicalOperator::aggregate(ProjectTuple* current_tuple){
   //聚合计数+1
