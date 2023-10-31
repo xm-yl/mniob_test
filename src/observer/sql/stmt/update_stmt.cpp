@@ -114,7 +114,8 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
       }
       else if(!field_nullable && value.is_null()) return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       if(!const_cast<Value&>(value).can_interpret_and_set(meta->type(),std::min((int)sizeof(int),meta->len()))){
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        LOG_WARN("Receive a value which is inconsistent with the update field and can not do type convertion.");
+        // return RC::SCHEMA_FIELD_TYPE_MISMATCH; 不在这里判断了。
       }
     }
     update_fields.push_back(meta);

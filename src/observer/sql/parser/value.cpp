@@ -246,20 +246,43 @@ bool Value::can_interpret_and_set(AttrType a, int len){
   //do nothing when type is the same.
   if(this->attr_type() == a) return true;
   
-  //this int -> floats
   else if(this->attr_type() == AttrType::INTS){
+    //this int -> floats
     if(a == AttrType::FLOATS){
       this->set_float(this->get_int());
       return true;
     }
+    //this int -> chars
+    else if(a == AttrType::CHARS){
+      std::string tmp = this->get_string();
+      if(tmp.length() > len){ // 输入的长度大于本身长度
+        LOG_WARN("Data to Long");
+        return false;
+      }
+      else{
+        this->set_string(tmp.c_str(), len);
+        return true;
+      }
+    }
     else return false;
   }
-  
-  //this floats -> int
   else if(this->attr_type() == AttrType::FLOATS){
+    //this floats -> int
     if(a == AttrType::INTS){
       this->set_int(this->get_float());
       return true;
+    }
+    //this floats -> chars
+    else if(a == AttrType::CHARS){
+      std::string tmp = this->get_string();
+      if(tmp.length() > len){ // 输入的长度大于本身长度
+        LOG_WARN("Data to Long");
+        return false;
+      }
+      else{
+        this->set_string(tmp.c_str(), len);
+        return true;
+      }
     }
     else return false;
   }

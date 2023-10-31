@@ -129,7 +129,7 @@ RC UpdatePhysicalOperator::next()
     // init update values from sub query
     if(!update_values_init){
       rc = init_update_values();
-      update_values_init = false;
+      update_values_init = true;
       if(rc != RC::SUCCESS) {
         LOG_WARN("Init update values failed!");
         return rc;
