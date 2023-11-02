@@ -37,7 +37,7 @@ public:
   }
 
   RC open(Trx *trx) override;
-  RC next() override;
+  RC next(Tuple* outer_tuple = nullptr) override;
   RC close() override;
 
   Tuple *current_tuple() override

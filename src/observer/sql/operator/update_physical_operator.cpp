@@ -103,7 +103,7 @@ RC UpdatePhysicalOperator::init_sub_query_expr() {
   }
   return rc;
 }
-RC UpdatePhysicalOperator::next()
+RC UpdatePhysicalOperator::next(Tuple* outer_tuple)
 {
   RC rc = RC::SUCCESS;
   if(!sub_query_init){

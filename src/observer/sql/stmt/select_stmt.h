@@ -43,7 +43,7 @@ public:
   }
 
 public:
-  static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt);
+  static RC create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std::unordered_map<std::string, Table *> *outer_tables = nullptr);
 
 public:
   const std::vector<Table *> &tables() const
@@ -54,14 +54,9 @@ public:
   {
     return query_fields_;
   }
-  // const std::vector<std::string> &aggr_fields() const
-  // {
-  //   return aggr_fields_;
-  // }
-  // const std::vector<AggrOp> &aggr_ops() const
-  // {
-  //   return aggr_ops_;
-  // }
+  const std::vector<Table *> &outer_tables() const {
+    return outer_tables_;
+  }
   FilterStmt *filter_stmt() const
   {
     return filter_stmt_;
@@ -80,6 +75,9 @@ public:
 private:
   std::vector<Field> query_fields_;
   std::vector<Table *> tables_;
+
+  std::vector<Table *> outer_tables_;  //< 子查询中可能关联父查询的table 实质上这个table是给filter创建的时候参考的
+
   FilterStmt *filter_stmt_ = nullptr;
   std::vector<Field> sort_fields_;
   std::vector<bool> is_asc_;

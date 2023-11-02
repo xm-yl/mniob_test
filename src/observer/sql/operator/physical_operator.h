@@ -73,7 +73,7 @@ public:
   virtual PhysicalOperatorType type() const = 0;
 
   virtual RC open(Trx *trx) = 0;
-  virtual RC next() = 0;
+  virtual RC next(Tuple* outer_tuple = nullptr) = 0;
   virtual RC close() = 0;
   virtual void debug_print_cnt_info_with_depth(int dep){
     LOG_DEBUG("[physicaloperator] depth:%d counts:%d", dep, this->debug_cnt);

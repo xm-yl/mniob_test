@@ -89,6 +89,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         JOIN
         WHERE
         AND
+        OR
         SET
         ON
         LOAD
@@ -961,6 +962,12 @@ condition_list:
       $$ = $3;
       $$->emplace_back(*$1);
       delete $1;
+    }
+    | condition OR condition_list{
+      $$ = $3;
+      $$->emplace_back(*$1);
+      delete $1;
+      $$->front().is_or = true;
     }
     ;
 condition:

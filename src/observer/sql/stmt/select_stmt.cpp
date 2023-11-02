@@ -78,14 +78,14 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas, AggrO
   }
 }
 
-RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
+RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std::unordered_map<std::string, Table*> *outer_tables/*used for subconditions*/)
 {
   if (nullptr == db) {
     LOG_WARN("invalid argument. db is null");
     return RC::INVALID_ARGUMENT;
   }
 
-  // collect tables in `from` statement
+  // collect tables in `from` statement and put it into outer_tables
   std::vector<Table *> tables;
   std::unordered_map<std::string, Table *> table_map;
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
@@ -100,8 +100,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
-
     tables.push_back(table);
+
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
   }
 
@@ -215,9 +215,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     }
     on_conditions.push_back(filter_stmt);
   }
-
-
-
   LOG_INFO("got %d tables in from stmt and %d fields in query stmt with %d on_conditions", tables.size(), query_fields.size(), on_conditions.size());
 
   // create filter statement in `where` statement
@@ -227,7 +224,8 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       &table_map,
       select_sql.conditions.data(),
       static_cast<int>(select_sql.conditions.size()),
-      filter_stmt);
+      filter_stmt,
+      outer_tables);
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     return rc;

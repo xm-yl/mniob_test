@@ -40,7 +40,7 @@ RC ProjectPhysicalOperator::open(Trx *trx)
   return RC::SUCCESS;
 }
 
-RC ProjectPhysicalOperator::next()
+RC ProjectPhysicalOperator::next(Tuple* outer_tuple)
 { 
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -48,14 +48,14 @@ RC ProjectPhysicalOperator::next()
   }
   this->debug_cnt++;
   if (is_aggregate && !finish_aggregate){
-    while(RC::SUCCESS == (children_[0]->next())){
+    while(RC::SUCCESS == (children_[0]->next(outer_tuple))){
       tuple_.set_tuple(children_[0]->current_tuple());
       aggregate(&tuple_);
     }
     process_aggr_record();
     finish_aggregate = true;
 
-    //TODO 这里的边界条件还是有点问题, 如果聚合函数没有接受到数据,这里应应该返回EOF
+    //#TODO 这里的边界条件还是有点问题, 如果聚合函数没有接受到数据,这里应应该返回EOF
     if (aggr_result__.empty()){
       pad_aggr_result();
     }
@@ -75,6 +75,13 @@ RC ProjectPhysicalOperator::close()
 {
   if (!children_.empty()) {
     children_[0]->close();
+  }
+  // clear the aggregation token.
+  if (finish_aggregate){
+    finish_aggregate = false;
+    aggr_result__.clear();
+    count = 0;
+    null_count = 0;
   }
   return RC::SUCCESS;
 }

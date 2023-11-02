@@ -101,6 +101,7 @@ INNER                                   RETURN_TOKEN(INNER);
 JOIN                                    RETURN_TOKEN(JOIN);
 WHERE                                   RETURN_TOKEN(WHERE);
 AND                                     RETURN_TOKEN(AND);
+OR                                      RETURN_TOKEN(OR);
 NOT                                     RETURN_TOKEN(NOT);
 IN                                      RETURN_TOKEN(IN);
 EXISTS                                  RETURN_TOKEN(EXISTS);

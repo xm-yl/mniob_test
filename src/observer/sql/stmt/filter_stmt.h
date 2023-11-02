@@ -28,9 +28,12 @@ class SelectStmt;
 struct FilterObj 
 {
   bool is_attr;
+  bool is_sub_query;                  // 如果是subquery的话，sub-query 不为空
+  bool is_connect_to_parent = false;  // 如果是attr的话，这个attr是不是关联到父查询的Tuple        
+  
   Field field;
   Value value;
-  bool is_sub_query;
+  Stmt* sub_query;      // #TODO memory management
   std::vector<Value> values;
   void init_attr(const Field &field)
   {
@@ -49,6 +52,9 @@ struct FilterObj
     is_attr = false;
     is_sub_query = true;
     this->values = values;
+  }
+  void init_sub_query(Stmt* sub_query_stmt){
+    sub_query = sub_query_stmt;
   }
 };
 
@@ -77,7 +83,9 @@ public:
   {
     right_ = obj;
   }
-
+  void set_connect_to_parent(const bool a){
+    is_connect_to_parent_ = a;
+  }
   const FilterObj &left() const
   {
     return left_;
@@ -86,11 +94,14 @@ public:
   {
     return right_;
   }
-
+  bool is_connect_to_parent() const {
+    return is_connect_to_parent_;
+  }
 private:
   CompOp comp_ = NO_OP;
   FilterObj left_;
   FilterObj right_;
+  bool is_connect_to_parent_ = false;
 };
 
 /**
@@ -113,14 +124,18 @@ public:
   {
     return sub_querys_;
   }
+  const bool is_or() const{
+    return is_or_;
+  }
 public:
-  static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt);
+  static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, 
+      const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt, std::unordered_map<std::string ,Table*> * outer_tables = nullptr);
 
-  static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-      const ConditionSqlNode &condition, FilterUnit *&filter_unit);
+  static RC create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, 
+      const ConditionSqlNode &condition, FilterUnit *&filter_unit, std::unordered_map<std::string ,Table*> * outer_tables = nullptr);
 
 private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
   std::vector<SelectStmt *> sub_querys_;
+  bool is_or_ = false;                       //是不是or？，在本次比赛中，or和and不会混合出现。
 };

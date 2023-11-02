@@ -16,7 +16,7 @@ RC OrderByPhysicalOperator::open(Trx *trx) {
   return RC::SUCCESS;
 }
 
-RC OrderByPhysicalOperator::next() {
+RC OrderByPhysicalOperator::next(Tuple* outer_tuple) {
   if(this->children_.size() != 1) {
     return RC::SUCCESS;
   }
@@ -34,7 +34,7 @@ RC OrderByPhysicalOperator::next() {
   Tuple* ret_tuple;
   RC rc;
   //LOG_DEBUG("extract tuple info start");
-  while((rc = child->next()) == RC::SUCCESS) {
+  while((rc = child->next(outer_tuple)) == RC::SUCCESS) {
     ret_tuple = child->current_tuple();
     now_tuple = new OrderByTuple();
     rc = now_tuple->exract_tuple_info(ret_tuple);

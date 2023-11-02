@@ -117,7 +117,11 @@ RC PredicatePushdownRewriter::get_exprs_can_pushdown(
         right_expr->type() != ExprType::FIELD && right_expr->type() != ExprType::VALUE) {
       return rc;
     }
-
+    //如果右边是子查询，也不下移。
+    // #TODO 现在我们只考虑右边是子查询的情况。
+    if (right_expr->type() == ExprType::SUBQUERY){
+      return rc;
+    }
     pushdown_exprs.emplace_back(std::move(expr));
   }
   return rc;

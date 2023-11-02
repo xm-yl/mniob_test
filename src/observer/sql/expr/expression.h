@@ -22,9 +22,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "common/log/log.h"
 
-// #include "sql/operator/physical_operator.h"
-
 class LogicalOperator;
+class PhysicalOperator;
 class Tuple;
 
 /**
@@ -169,15 +168,14 @@ private:
 // 接受一个字段并执行子查询操作 
 class SubQueryExpr : public Expression{
 public:
-  SubQueryExpr() = default;
-  explicit SubQueryExpr(const std::vector<Value> &values): values_(values)
-  {}
-  virtual ~SubQueryExpr() = default;
+  explicit SubQueryExpr(const std::vector<Value>& value=std::vector<Value>(), int field_num = 0, int tuple_num = 0);
+  //explicit SubQueryExpr(const std::vector<Value> &values): values_(values){}
+  virtual ~SubQueryExpr();
 
   RC get_value(const Tuple &tuple, Value &value) const override{
     // 当试图从subquery中拿一个值出来的时候，如果查询结果有多行，那么就禁止这次偶作。
     if(this->value_num() != 1){
-      LOG_WARN("Only use when aggregation func is used and subquery has single value. And at this time =,<,>,<> can be used for subQ. However sub_query get %d values", this->value_num());
+      LOG_WARN("Only use when aggregation func is used and subquery has single value. However sub_query get %d values", this->value_num());
       return RC::INTERNAL;
     }
     value = values_.front();
@@ -213,12 +211,24 @@ public:
   int get_tuple_num () const {
     return tuple_num_from_sub_query_;
   }
+  std::unique_ptr<LogicalOperator>& get_sub_query_logical_oper(){
+    return sub_query_logical_oper_;
+  };
+  std::unique_ptr<PhysicalOperator>& get_sub_query_physical_oper(){
+    return sub_query_physical_oper_;
+  }
+  RC open(Trx* trx){
+    trx_ = trx;
+    return RC::SUCCESS;
+  }
+  RC get_values(const Tuple& tuple, std::vector<Value>& result);
 private:
   std::vector<Value> values_;
   int field_num_of_sub_query_;
   int tuple_num_from_sub_query_;
-  // std::unique_ptr<LogicalOperator> sub_query_logical_oper_;
-  // std::unique_ptr<PhysicalOperator> sub_query_physical_oper_;
+  std::unique_ptr<LogicalOperator> sub_query_logical_oper_;
+  std::unique_ptr<PhysicalOperator> sub_query_physical_oper_;
+  Trx* trx_;   //用于子查询的事务
 };
 
 /**

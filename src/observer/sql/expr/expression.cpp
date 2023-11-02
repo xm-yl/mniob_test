@@ -14,14 +14,63 @@ See the Mulan PSL v2 for more details. */
 
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
+#include "sql/operator/physical_operator.h"
+#include "sql/operator/logical_operator.h"
 
 using namespace std;
+SubQueryExpr::SubQueryExpr(const std::vector<Value>& value, int field_num, int tuple_num):
+  values_(value), field_num_of_sub_query_(field_num), tuple_num_from_sub_query_(tuple_num){}
+SubQueryExpr::~SubQueryExpr(){}
 
 RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
 {
   return tuple.find_cell(TupleCellSpec(table_name(), field_name()), value);
 }
-
+RC SubQueryExpr::get_values(const Tuple& tuple, std::vector<Value> &result) {
+  //init
+  RC rc = RC::SUCCESS;
+  values_.clear();
+  rc = sub_query_physical_oper_->open(trx_);
+  if(rc != RC::SUCCESS){
+    return rc;
+  }
+  int tuple_num_from_sub_query = 0;
+  int field_num_from_sub_query = 0;
+  while(RC::SUCCESS == (rc = sub_query_physical_oper_->next(const_cast<Tuple*>(&tuple)))){
+    Tuple * tuple = sub_query_physical_oper_->current_tuple();
+    if(nullptr == tuple){
+      rc = RC::INTERNAL;
+      LOG_WARN("failed to get tuple from operator");
+      return rc;
+    }
+    Value value;
+    field_num_from_sub_query = tuple->cell_num();
+    tuple_num_from_sub_query++;
+    
+    // Not Allowed for multiple return values.
+    rc = tuple->cell_at(0,value);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    values_.push_back(value);
+  }
+  field_num_of_sub_query_ = field_num_from_sub_query;
+  tuple_num_from_sub_query_ = tuple_num_from_sub_query;
+  rc = sub_query_physical_oper_->close();
+  if(rc != RC::SUCCESS){
+    return rc;
+  }
+  //pad with a null value when no return values for sub.
+  if(tuple_num_from_sub_query == 0) {
+    Value tmp;
+    tmp.set_null(true);
+    tmp.set_type(AttrType::INTS);
+    tmp.set_length((int)sizeof(int));
+    values_.push_back(tmp);
+  }
+  result = values_;
+  return rc;
+}
 RC ValueExpr::get_value(const Tuple &tuple, Value &value) const
 {
   value = value_;
@@ -195,6 +244,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   if(comp_ == CompOp::IN_OP     || comp_ == CompOp::NOT_IN_OP     ||
      comp_ == CompOp::EXISTS_OP || comp_ == CompOp::NOT_EXISTS_OP)  {
     
+    //get left value.
     Value left_value;
     rc = left_->get_value(tuple, left_value); // only need when in op;
     if (rc != RC::SUCCESS && (comp_ == CompOp::IN_OP || comp_ == CompOp::NOT_IN_OP)) {
@@ -202,14 +252,30 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       return rc;
     }
     
-    ASSERT(right_->type() == ExprType::SUBQUERY,"in or exists only used when subquerys");
-    std::vector<Value> right_values = dynamic_cast<SubQueryExpr*>(right_.get())->values();
+    // TODO : get right values by execute sub query, return when no sub querys
+    std::vector<Value> right_values;
+    SubQueryExpr* subquery_handler = static_cast<SubQueryExpr*>(right_.get());
+    rc = subquery_handler->get_values(tuple, right_values);
+    if(rc != RC::SUCCESS){
+      LOG_WARN("Sub Query Failed");
+      return rc;
+    }
+    
+    // check whether the comparsion is legal.
+    if(subquery_handler->get_field_num() > 1) {
+      LOG_WARN("The subquery returns with %d fields", subquery_handler->get_field_num());
+      return RC::INTERNAL;
+    }
+    
+    // begin compare 
     bool bool_value = false;
     rc = compare_values(left_value, right_values, bool_value);
     if (rc == RC::SUCCESS) {
       value.set_boolean(bool_value);
     }
   }
+
+  // 
   else{
     Value left_value;
     Value right_value;
@@ -219,12 +285,29 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
       return rc;
     }
+
+    // if subquery
+    if(right_->type() == ExprType::SUBQUERY) {
+      std::vector<Value> right_values;
+      // TODO : get values by execute sub query, return when no sub querys
+      SubQueryExpr* subquery_handler = static_cast<SubQueryExpr*>(right_.get());
+      rc = subquery_handler->get_values(tuple, right_values);
+      if(rc != RC::SUCCESS){
+        LOG_WARN("Sub Query Failed");
+        return rc;
+      }
+
+      // check if legal illgal if get more than one values.
+      // #TODO when in compare, the subquery returns null when no values is set.
+      if(subquery_handler->get_field_num() > 1) return RC::INTERNAL;
+      if(subquery_handler->get_tuple_num() > 1) return RC::INTERNAL;
+    }
+
     rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
       return rc;
     }
-
     rc = compare_value(left_value, right_value, value);
   }
   return rc;
@@ -239,7 +322,9 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
 {
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
-    value.set_boolean(true);
+    if(this->conjunction_type() == ConjunctionExpr::Type::AND)
+      value.set_boolean(true);
+    else value.set_boolean(false);//false if or exists 
     return rc;
   }
 
@@ -257,7 +342,7 @@ RC ConjunctionExpr::get_value(const Tuple &tuple, Value &value) const
     }
   }
 
-  bool default_value = (conjunction_type_ == Type::AND);
+  bool default_value = (conjunction_type_ == Type::AND); 
   value.set_boolean(default_value);
   return rc;
 }
