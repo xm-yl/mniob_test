@@ -59,7 +59,9 @@ RC ProjectPhysicalOperator::next(Tuple* outer_tuple)
     if (aggr_result__.empty()){
       pad_aggr_result();
     }
-    rc = RC::SUCCESS;
+    if(rc == RC::RECORD_EOF){
+      rc = RC::SUCCESS;
+    }
   }
   else if(!is_aggregate){
     rc = children_[0]->next();
