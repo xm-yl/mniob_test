@@ -97,11 +97,18 @@ public:
   bool is_connect_to_parent() const {
     return is_connect_to_parent_;
   }
+  void set_has_sub_query(const bool a) {
+    has_sub_query_ = a;
+  }
+  bool has_sub_query() const {
+    return has_sub_query_;
+  }
 private:
   CompOp comp_ = NO_OP;
   FilterObj left_;
   FilterObj right_;
   bool is_connect_to_parent_ = false;
+  bool has_sub_query_ = false;
 };
 
 /**
@@ -127,6 +134,12 @@ public:
   const bool is_or() const{
     return is_or_;
   }
+  void set_has_sub_query(const bool a) {
+    has_sub_query_ = a;
+  }
+  bool has_sub_query() const {
+    return has_sub_query_;
+  }
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, 
       const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt, std::unordered_map<std::string ,Table*> * outer_tables = nullptr);
@@ -138,4 +151,5 @@ private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
   std::vector<SelectStmt *> sub_querys_;
   bool is_or_ = false;                       //是不是or？，在本次比赛中，or和and不会混合出现。
+  bool has_sub_query_ = false;
 };

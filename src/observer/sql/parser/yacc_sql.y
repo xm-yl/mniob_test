@@ -1196,6 +1196,23 @@ condition:
       delete $1;
       delete $5;
     }
+    | LBRACE select_stmt RBRACE comp_op LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      
+      $$->left_is_attr = 0;
+      $$->left_is_sub_query = 1;
+      $$->left_sub_query = std::make_shared<SelectSqlNode>($2->selection);
+     
+      $$->comp = $4;
+      
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($6->selection);
+
+      delete $2;
+      delete $6;
+    }
     ;
 
 comp_op:

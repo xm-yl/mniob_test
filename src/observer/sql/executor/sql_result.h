@@ -48,6 +48,12 @@ public:
 
   void set_operator(std::unique_ptr<PhysicalOperator> oper);
   
+  void set_has_sub_query(const bool a){
+    has_sub_query_ = a;
+  }
+  bool has_sub_query() const {
+    return has_sub_query_;
+  }
   bool has_operator() const
   {
     return operator_ != nullptr;
@@ -69,6 +75,9 @@ public:
     ProjectPhysicalOperator* b = dynamic_cast<ProjectPhysicalOperator*>(a);
     return b->get_aggrgation_result();
   }
+  std::unique_ptr<PhysicalOperator>& get_operator(){
+    return operator_;
+  }
   RC open();
   RC close();
   RC next_tuple(Tuple *&tuple);
@@ -79,4 +88,5 @@ private:
   TupleSchema tuple_schema_;   ///< 返回的表头信息。可能有也可能没有
   RC return_code_ = RC::SUCCESS;
   std::string state_string_;
+  bool has_sub_query_ = false;
 };

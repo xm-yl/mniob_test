@@ -182,6 +182,26 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
     sql_result->set_return_code(rc);
     return write_state(event, need_disconnect);
   }
+  //试运行
+  if(sql_result->has_sub_query()){
+    RC rc_try = RC::SUCCESS;
+    Tuple* tuple_try;
+    while (RC::SUCCESS == (rc_try = sql_result->next_tuple(tuple_try)));
+    if(rc_try != RC::SUCCESS && rc_try != RC::RECORD_EOF){
+      sql_result->close();
+      sql_result->set_return_code(rc_try);
+      return write_state(event, need_disconnect);
+    }
+    rc = sql_result->get_operator()->close();
+    rc = sql_result->open();
+    if (OB_FAIL(rc)) {
+      LOG_DEBUG("%s",strrc(rc));
+      sql_result->close();
+      sql_result->set_return_code(rc);
+      return rc;
+    }
+  }
+  
 
   const TupleSchema &schema = sql_result->tuple_schema();
   const int cell_num = schema.cell_num();

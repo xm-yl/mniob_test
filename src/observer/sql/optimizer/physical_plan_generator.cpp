@@ -202,7 +202,8 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   }
   
   // create sub query in comparsionExpr->(left,right)->
-  int debug_count = 0;
+  int right_debug_count = 0;
+  int left_debug_count = 0;
   for(auto& children_expr:pred_conj_expr->children()){
     ComparisonExpr* comp_child_expr = dynamic_cast<ComparisonExpr*> (children_expr.get());
     //conj -> vector<Comparison>
@@ -210,25 +211,36 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
       LOG_WARN("Type convert to comparison expr failed");
       return RC::INTERNAL;
     }
-    //comparison -> (left , right) // #TODO 现在只考虑右边是子查询的情况。
+    //comparison -> (left , right) // 
+    if(comp_child_expr->left()->type() == ExprType::SUBQUERY){
+      SubQueryExpr* tmp = static_cast<SubQueryExpr*>(comp_child_expr->left().get());
+      left_debug_count++;
+      std::unique_ptr<LogicalOperator>& tmp_log_oper = tmp->get_sub_query_logical_oper();
+      unique_ptr<PhysicalOperator> sub_phy_oper;
+      rc = create(*tmp_log_oper,tmp->get_sub_query_physical_oper());
+      if(rc != RC::SUCCESS){
+        LOG_WARN("failed to create left child oper of predicate operator. rc=%s", strrc(rc));
+        return rc;
+      }
+    }
     if(comp_child_expr->right()->type() == ExprType::SUBQUERY){
       SubQueryExpr* tmp = static_cast<SubQueryExpr*>(comp_child_expr->right().get());
-
       // 
       if(tmp->values().empty()){
-        debug_count++;
+        right_debug_count++;
         std::unique_ptr<LogicalOperator>& tmp_log_oper = tmp->get_sub_query_logical_oper();
         unique_ptr<PhysicalOperator> sub_phy_oper;
         rc = create(*tmp_log_oper,tmp->get_sub_query_physical_oper());
         if(rc != RC::SUCCESS){
-          LOG_WARN("failed to create child oper of predicate operator. rc=%s", strrc(rc));
+          LOG_WARN("failed to create right child oper of predicate operator. rc=%s", strrc(rc));
           return rc;
         }
       }
     }
     
   }
-  LOG_DEBUG("Create %d sub query physical plan tree", debug_count);
+  LOG_DEBUG("Create %d left sub query physical plan tree", left_debug_count);
+  LOG_DEBUG("Create %d rigth sub query physical plan tree", right_debug_count);
   
   //create oper and its children. 
   oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));

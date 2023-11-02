@@ -286,6 +286,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
   select_stmt->on_conditions_.swap(on_conditions);
   select_stmt->sort_fields_.swap(order_fields);
   select_stmt->is_asc_.swap(is_asc);
+  select_stmt->set_has_sub_query(filter_stmt->has_sub_query());
   stmt = select_stmt;
   return RC::SUCCESS;
 }

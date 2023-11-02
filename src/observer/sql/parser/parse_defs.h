@@ -103,9 +103,13 @@ struct ConditionSqlNode
 {
   int             left_is_attr;       ///< TRUE if left-hand side is an attribute
                                       ///< 1时，操作符左边是属性名，0时，是属性值
+  int             left_is_sub_query = 0;///1时，操作符左边是另外的一个子查询
   Value           left_value;         ///< left-hand side value if left_is_attr = FALSE
   RelAttrSqlNode  left_attr;          ///< left-hand side attribute
+  std::shared_ptr<SelectSqlNode> left_sub_query;
+  
   CompOp          comp;               ///< comparison operator
+  
   int             right_is_attr;      ///< TRUE if right-hand side is an attribute
                                       ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode  right_attr;         ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
@@ -113,6 +117,7 @@ struct ConditionSqlNode
   int             right_is_sub_query = 0; ///< 1时，操作符右边是另外的一个子查询
   std::shared_ptr<SelectSqlNode>  right_sub_query;    ///< right-hand side is another sub_query.
   std::vector<Value>     right_values;        ///<  right-hand side is a set.
+  
   bool            is_or = false;      ///< 是否是用or串联起来的condition
   bool validate() {
     //LOG_DEBUG("conditions lvalue:%d rvalue:%d", left_value.attr_type(), right_value.attr_type());

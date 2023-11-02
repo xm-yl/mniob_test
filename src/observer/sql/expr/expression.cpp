@@ -28,6 +28,11 @@ RC FieldExpr::get_value(const Tuple &tuple, Value &value) const
 }
 RC SubQueryExpr::get_values(const Tuple& tuple, std::vector<Value> &result) {
   //init
+  if(sub_query_physical_oper_ == nullptr) {
+    result = values_;
+    return RC::SUCCESS;
+  }
+
   RC rc = RC::SUCCESS;
   values_.clear();
   rc = sub_query_physical_oper_->open(trx_);
@@ -280,10 +285,24 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     Value left_value;
     Value right_value;
 
+    //init value if subquery by executing subquery.
+    if(left_->type() == ExprType::SUBQUERY) {
+      std::vector<Value> left_values;
+      SubQueryExpr* subquery_handler = static_cast<SubQueryExpr*>(left_.get());
+      rc = subquery_handler->get_values(tuple, left_values);
+      if(rc != RC::SUCCESS){
+        LOG_WARN("Sub Query Failed");
+        return rc;
+      }
+      if(subquery_handler->get_field_num() > 1) return RC::INTERNAL;
+      if(subquery_handler->get_tuple_num() > 1) return RC::INTERNAL;
+    }
+
     rc = left_->get_value(tuple, left_value);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
       return rc;
+      
     }
 
     // if subquery

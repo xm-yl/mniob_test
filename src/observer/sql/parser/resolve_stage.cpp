@@ -25,7 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/session_event.h"
 #include "session/session.h"
 #include "sql/stmt/stmt.h"
-
+#include "sql/stmt/select_stmt.h"
 using namespace common;
 
 RC ResolveStage::handle_request(SQLStageEvent *sql_event)
@@ -53,6 +53,10 @@ RC ResolveStage::handle_request(SQLStageEvent *sql_event)
   }
 
   sql_event->set_stmt(stmt);
+  if(stmt->type() == StmtType::SELECT){
+    SelectStmt* tmp = static_cast<SelectStmt*>(stmt);
+    sql_result->set_has_sub_query(tmp->has_sub_query());
+  }
 
   return rc;
 }

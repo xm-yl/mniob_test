@@ -48,6 +48,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
       LOG_WARN("failed to create filter unit. condition index=%d", i);
       return rc;
     }
+    if(filter_unit->has_sub_query()) tmp_stmt->set_has_sub_query(true);
     tmp_stmt->filter_units_.push_back(filter_unit);
   }
   
@@ -101,31 +102,41 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   filter_unit = new FilterUnit;
 
   //构建左边的OBJ
-  if (condition.left_is_attr) {
-    Table *table = nullptr;
-    const FieldMeta *field = nullptr;
-    rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
-    bool is_connect_to_parent = false;
-    
-    // if failed, try to get field from the outer query.
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("cannot find attr in this select stmt scope maybe use outer tables");
-      if(outer_tables != nullptr)
-        rc = get_table_and_field(db, default_table, outer_tables, condition.left_attr, table, field);
-      if(rc != RC::SUCCESS){
-        LOG_WARN("cannot find attr");
-        return rc;
+  if (!condition.left_is_sub_query){
+    if (condition.left_is_attr) {
+      Table *table = nullptr;
+      const FieldMeta *field = nullptr;
+      rc = get_table_and_field(db, default_table, tables, condition.left_attr, table, field);
+      bool is_connect_to_parent = false;
+      
+      // if failed, try to get field from the outer query.
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("cannot find attr in this select stmt scope maybe use outer tables");
+        if(outer_tables != nullptr)
+          rc = get_table_and_field(db, default_table, outer_tables, condition.left_attr, table, field);
+        if(rc != RC::SUCCESS){
+          LOG_WARN("cannot find attr");
+          return rc;
+        }
+        is_connect_to_parent = true;
       }
-      is_connect_to_parent = true;
+      FilterObj filter_obj;
+      filter_obj.is_connect_to_parent = is_connect_to_parent;
+      filter_obj.init_attr(Field(table, field));
+      filter_unit->set_left(filter_obj);
+    } else {
+      FilterObj filter_obj;
+      filter_obj.init_value(condition.left_value);
+      filter_unit->set_left(filter_obj);
     }
+  }
+  else {
     FilterObj filter_obj;
-    filter_obj.is_connect_to_parent = is_connect_to_parent;
-    filter_obj.init_attr(Field(table, field));
+    SelectSqlNode* sub_select_sql_node = condition.left_sub_query.get();
+    rc = SelectStmt::create(db, *sub_select_sql_node, filter_obj.sub_query, &new_outer_tables);
+    filter_obj.init_values(std::vector<Value>());
     filter_unit->set_left(filter_obj);
-  } else {
-    FilterObj filter_obj;
-    filter_obj.init_value(condition.left_value);
-    filter_unit->set_left(filter_obj);
+    filter_unit->set_has_sub_query(true);
   }
 
   if(comp == IS_OP || comp == IS_NOT_OP) {
@@ -168,8 +179,12 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
   }
   else{
     FilterObj filter_obj;
-    SelectSqlNode* sub_select_sql_node = condition.right_sub_query.get();
-    rc = SelectStmt::create(db, *sub_select_sql_node, filter_obj.sub_query, &new_outer_tables);
+    // #TODO 这里是不是要特判一下values是不是为空
+    if(condition.right_values.empty()){
+      SelectSqlNode* sub_select_sql_node = condition.right_sub_query.get();
+      rc = SelectStmt::create(db, *sub_select_sql_node, filter_obj.sub_query, &new_outer_tables);
+      filter_unit->set_has_sub_query(true);
+    }
     filter_obj.init_values(condition.right_values);
     filter_unit->set_right(filter_obj);
   }

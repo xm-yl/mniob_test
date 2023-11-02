@@ -71,6 +71,12 @@ public:
   const std::vector<bool> &is_asc() const {
     return this->is_asc_;
   }
+  void set_has_sub_query(const bool a) {
+    has_sub_query_ = a;
+  }
+  bool has_sub_query() const {
+    return has_sub_query_;
+  }
 
 private:
   std::vector<Field> query_fields_;
@@ -82,4 +88,5 @@ private:
   std::vector<Field> sort_fields_;
   std::vector<bool> is_asc_;
   std::vector<FilterStmt *> on_conditions_; // memory leak  ?
+  bool has_sub_query_ = false;
 };

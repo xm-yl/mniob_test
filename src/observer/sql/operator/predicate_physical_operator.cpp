@@ -75,6 +75,13 @@ RC PredicatePhysicalOperator::open_sub_query(Trx* trx){
     Expression*     right_expr    = children_expr->right().get();
     CompOp          this_compop   = children_expr->comp();
     Expression*     left_expr     = children_expr->left().get();
+    if(left_expr->type()  == ExprType::SUBQUERY){
+      rc = dynamic_cast<SubQueryExpr*>(left_expr)->open(trx);
+      if(rc != RC::SUCCESS){
+        LOG_WARN("Open sub query failed");
+        return rc;
+      }
+    }
     if(right_expr->type() == ExprType::SUBQUERY){
       rc = dynamic_cast<SubQueryExpr*>(right_expr)->open(trx);
     }
