@@ -59,6 +59,10 @@ RC SubQueryExpr::get_values(const Tuple& tuple, std::vector<Value> &result) {
     }
     values_.push_back(value);
   }
+  if(rc != RC::SUCCESS && rc != RC::RECORD_EOF){
+    sub_query_physical_oper_->close();
+    return rc;
+  }
   field_num_of_sub_query_ = field_num_from_sub_query;
   tuple_num_from_sub_query_ = tuple_num_from_sub_query;
   rc = sub_query_physical_oper_->close();

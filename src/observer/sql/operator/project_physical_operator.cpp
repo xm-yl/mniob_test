@@ -64,7 +64,7 @@ RC ProjectPhysicalOperator::next(Tuple* outer_tuple)
     }
   }
   else if(!is_aggregate){
-    rc = children_[0]->next();
+    rc = children_[0]->next(outer_tuple);
     if(rc!=RC::SUCCESS) return rc;
   }
   else if(is_aggregate && finish_aggregate){
