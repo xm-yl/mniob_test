@@ -9,7 +9,7 @@
 class UpdateLogicalOperator : public LogicalOperator 
 {
 public:
-  UpdateLogicalOperator(Table *table,std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields);
+  UpdateLogicalOperator(Table *table,const std::vector<Expression *> &update_exprs, const std::vector<const FieldMeta*> &update_fields);
   virtual ~UpdateLogicalOperator() = default;
 
   LogicalOperatorType type() const override
@@ -21,9 +21,8 @@ public:
     return table_;
   }
 
-  std::vector<const Value *>update_values() const
-  {
-    return update_values_;
+  std::vector<Expression*> update_exprs() const {
+    return update_exprs_;
   }
   
   std::vector<const FieldMeta*> update_fields() const{
@@ -31,6 +30,6 @@ public:
   }
 private:
   Table *table_ = nullptr;
-  std::vector<const Value*> update_values_;
+  std::vector<Expression *> update_exprs_;
   std::vector<const FieldMeta*> update_fields_;
 };

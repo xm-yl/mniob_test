@@ -73,7 +73,19 @@ public:
     int result = 0;
     const char* left_oprand = v1;
     const char* right_oprand = v2;
+
+
+
     for (int i = 0; i < attr_num_; i++){
+      bool null_data = true;
+      //TODO num_value_ int_value_ related modifications 
+      for(int j = 0;j < std::min(attr_lengths_[i], (int)sizeof(int)); j++) {
+        if(right_oprand[j] != null_magic_byte) {
+          null_data = false;
+          break;
+        }
+      }
+      if(null_data) return 1;
       switch (attr_types_[i]) {
         case INTS: case DATES:{
           result =  common::compare_int((void *)left_oprand, (void *)right_oprand);

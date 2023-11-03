@@ -22,6 +22,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/value.h"
 #include "common/log/log.h"
 
+// #include "sql/operator/physical_operator.h"
+
+class LogicalOperator;
 class Tuple;
 
 /**
@@ -163,7 +166,7 @@ private:
  * @brief 子查询表达式
  * @ingroup Expression
 **/
-
+// 接受一个字段并执行子查询操作 
 class SubQueryExpr : public Expression{
 public:
   SubQueryExpr() = default;
@@ -198,8 +201,24 @@ public:
   const std::vector<Value> & values() const{
     return values_;
   }
+  void set_field_num(int a) {
+    field_num_of_sub_query_ = a;
+  }
+  void set_tuple_num(int a) {
+    tuple_num_from_sub_query_ = a;
+  }
+  int get_field_num () const {
+    return field_num_of_sub_query_;
+  }
+  int get_tuple_num () const {
+    return tuple_num_from_sub_query_;
+  }
 private:
   std::vector<Value> values_;
+  int field_num_of_sub_query_;
+  int tuple_num_from_sub_query_;
+  // std::unique_ptr<LogicalOperator> sub_query_logical_oper_;
+  // std::unique_ptr<PhysicalOperator> sub_query_physical_oper_;
 };
 
 /**

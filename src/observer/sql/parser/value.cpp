@@ -11,7 +11,7 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by WangYunlai on 2023/06/28.
 //
-
+#include <cmath>
 #include <sstream>
 #include <cctype>
 #include <algorithm>
@@ -221,6 +221,169 @@ void Value::set_null(bool s) {
   }
   this->is_null_ = s;
 }
+
+bool Value::can_interpret(AttrType a) const {
+  if(this->attr_type() == a) return true;
+  if(this->attr_type() == AttrType::INTS){
+    if(a == AttrType::FLOATS)return true;
+    if(a == AttrType::CHARS) return true;
+    else return false;
+  }
+  if(this->attr_type() == AttrType::FLOATS){
+    if(a == AttrType::INTS) return true;
+    if(a == AttrType::CHARS) return true;
+    else return false;
+  }
+  if(this->attr_type() == AttrType::CHARS){
+    if(a == AttrType::INTS) return true;
+    if(a == AttrType::FLOATS) return true;
+    else return false;
+  }
+  return false;
+}
+bool Value::can_interpret_and_set(AttrType a, int len){
+  if(!can_interpret(a)) return false;
+  
+  //can interpret to any type if this is null
+  if(this->is_null()){
+    this->set_type(a);
+    this->set_length(len);
+    return true;
+  }
+  //do nothing when type is the same.
+  if(this->attr_type() == a) return true;
+  
+  else if(this->attr_type() == AttrType::INTS){
+    //this int -> floats
+    if(a == AttrType::FLOATS){
+      this->set_float(this->get_int());
+      return true;
+    }
+    //this int -> chars
+    else if(a == AttrType::CHARS){
+      std::string tmp = this->get_string();
+      if(tmp.length() > len){ // 输入的长度大于本身长度
+        LOG_WARN("Data to Long");
+        return false;
+      }
+      else{
+        this->set_string(tmp.c_str(), len);
+        return true;
+      }
+    }
+    else return false;
+  }
+  else if(this->attr_type() == AttrType::FLOATS){
+    //this floats -> int
+    if(a == AttrType::INTS){
+      this->set_int(std::round(this->get_float()));
+      return true;
+    }
+    //this floats -> chars
+    else if(a == AttrType::CHARS){
+      std::string tmp = this->get_string();
+      if(tmp.length() > len){ // 输入的长度大于本身长度
+        LOG_WARN("Data to Long");
+        return false;
+      }
+      else{
+        this->set_string(tmp.c_str(), len);
+        return true;
+      }
+    }
+    else return false;
+  }
+  else if(this->attr_type() == AttrType::CHARS){
+    //this chars -> int
+    if(a == AttrType::INTS){
+      std::string s = this->get_string();
+      float tmp;
+      if(!string2float(s,tmp)) return false;     
+      this->set_int(std::round(tmp));
+      return true;
+    }
+    //this chars -> floats
+    else if(a == AttrType::FLOATS){
+      std::string s = this->get_string();
+      float tmp;
+      if(!string2float(s,tmp)) return false; 
+      this->set_float(tmp);
+      return true;
+    }
+    else return false;
+  }
+  else return false;
+}
+bool Value::string2float(const std::string& b, float& result){
+  std::string a;
+  if(b.empty()) return false;
+  if(b.at(0) == '-') a = std::string(b, 1, b.length() - 1);
+  else a = b;
+  int dot_pos = a.length();
+  if(a.length() == 0) return false;
+  if(a.length() == 1 && a.at(0) == '.') return false;
+  for(int i = 0; i < a.length(); i++){
+    if(a.at(i) == '.'){
+      if(dot_pos!= a.length()) return false;
+      else dot_pos = i;
+    }
+    else if(a.at(i) <= '9' && a.at(i) >='1') continue;
+    else return false;
+  }
+  result = 0.0;
+  for(int i = 0; i < dot_pos; i++){
+    result = result * 10 + a.at(i) - '0';
+  }
+  float tmp = 0;
+  for(int i = a.length() - 1; i > dot_pos; i--){
+    tmp = tmp/10 + a.at(i) - '0';
+  }
+  tmp /= 10;
+  result += tmp;
+  if(b.at(0) == '-') result = -result;
+  return true;
+}
+bool Value::can_interpret_and_set(const Value &v) {
+  // true : can an set , false: can not and do nothing.
+  if(!can_interpret(v)) return false;
+  
+  //can interpret to any type if this is null
+  if(this->is_null()){
+    this->set_type(v.attr_type());
+    this->set_length(v.length());
+    return true;
+  }
+  //do nothing when type is the same.
+  if(this->attr_type() == v.attr_type()) return true;
+  
+  //this int -> floats
+  else if(this->attr_type() == AttrType::INTS){
+    if(v.attr_type() == AttrType::FLOATS){
+      this->set_float(this->get_int());
+      return true;
+    }
+    else return false;
+  }
+  
+  //this floats -> int
+  else if(this->attr_type() == AttrType::FLOATS){
+    if(v.attr_type() == AttrType::INTS){
+      this->set_int(this->get_float());
+      return true;
+    }
+    else return false;
+  }
+  else return false; 
+}
+
+bool Value::can_interpret(const Value &v) const {
+  if (this->is_null()) {
+    return true;
+  }
+
+  return this->can_interpret(v.attr_type());
+}
+
 
 void Value::set_length(int len) {
   this->length_ = len;

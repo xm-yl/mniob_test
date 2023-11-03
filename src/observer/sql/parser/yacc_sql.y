@@ -172,6 +172,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <attr_info>           attr_def
 %type <value_list>          value_list
 %type <condition_list>      where
+%type <condition>           update_expr
 %type <condition_list>      update_exprs
 %type <condition_list>      condition_list
 %type <condition_list>      on_condition_exprs
@@ -567,49 +568,67 @@ delete_stmt:    /*  delete 语句的语法解析树*/
       free($3);
     }
     ;
+
+update_expr:
+  ID EQ value{
+    $$ = new ConditionSqlNode();
+    $$->left_is_attr = 1;
+    $$->left_attr.attribute_name = $1;
+    $$->right_is_attr = 0;
+    $$->right_is_sub_query = 0;
+    $$->right_value = *$3;
+    $$->comp = EQUAL_TO;
+    
+    free($1);
+    delete $3;
+  }
+  | ID EQ LBRACE select_stmt RBRACE{
+    $$ = new ConditionSqlNode();
+    $$->left_is_attr = 1;
+    $$->left_attr.attribute_name = $1;
+    $$->right_is_attr = 0;
+    $$->right_is_sub_query = 1;
+    $$->right_sub_query = make_shared<SelectSqlNode>((*$4).selection);
+    $$->comp = EQUAL_TO;
+  
+    free($1);
+    delete $4;
+  }
+  ;
 update_exprs: 
   /*empty*/{
     $$ = nullptr;
   }
-  | COMMA ID EQ value update_exprs{
-    if($5 == nullptr){
+  | COMMA update_expr update_exprs{
+    if($3 == nullptr){
       $$ = new std::vector<ConditionSqlNode>;
     }
     else {
-      $$ = $5;
+      $$ = $3;
     }
-    ConditionSqlNode* expr = new ConditionSqlNode();
-    expr->left_is_attr = 1;
-    expr->left_attr.attribute_name = $2;
-    expr->right_is_attr = 0;
-    expr->right_value = *$4;
-    expr->comp = EQUAL_TO;
-    $$->push_back(*expr);
-    delete expr;
-    free($2);
-    delete $4;
+    $$->push_back(*$2);
+
+    delete $2;
   }
   ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value update_exprs where 
+    UPDATE ID SET update_expr update_exprs where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name.push_back($4);
-      $$->update.value.push_back(*$6);
-      delete $6;
-      if ($8 != nullptr) {
-        $$->update.conditions.swap(*$8);
-        delete $8;
-      }
+      $$->update.update_conditions.push_back(*$4);
+      
       free($2);
-      free($4);
-      if ($7 != nullptr){
-        for(int i=0; i < (int)$7->size(); i++){
-          $$->update.attribute_name.push_back($7->at(i).left_attr.attribute_name);
-          $$->update.value.push_back($7->at(i).right_value);
+      delete $4;
+      if ($6 != nullptr) {
+        $$->update.conditions.swap(*$6);
+        delete $6;
+      }
+      if ($5 != nullptr){
+        for(int i = 0; i < (int)$5->size(); i++){
+          $$->update.update_conditions.push_back($5->at(i));
         }
-        delete $7;
+        delete $5;
       }
     }
     ;
@@ -1101,6 +1120,75 @@ condition:
       $$->comp = $4;
 
       delete $2;
+      delete $5;
+    }
+    | rel_attr IN LBRACE value value_list RBRACE{
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      if ($5 != nullptr) {
+        $$->right_values.swap(*$5);
+      }
+      $$->right_values.emplace_back(*$4);
+      $$->right_sub_query;
+      $$->comp = IN_OP;
+
+      delete $1;
+      delete $4;
+    }
+    | rel_attr NOT IN LBRACE value value_list RBRACE{
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 1;
+      $$->left_attr = *$1;
+      $$->left_value;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      if ($6 != nullptr) {
+        $$->right_values.swap(*$6);
+      }
+      $$->right_values.emplace_back(*$5);
+      $$->right_sub_query;
+      $$->comp = NOT_IN_OP;
+
+      delete $1;
+      delete $5;
+    }
+    | value IN LBRACE value value_list RBRACE{
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_attr;
+      $$->left_value = *$1;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query;
+      if ($5 != nullptr) {
+        $$->right_values.swap(*$5);
+      }
+      $$->right_values.emplace_back(*$4);
+      $$->comp = IN_OP;
+
+      delete $1;
+      delete $4;
+    }
+    | value NOT IN LBRACE value value_list RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      $$->left_is_attr = 0;
+      $$->left_attr;
+      $$->left_value = *$1;
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query;
+      if ($6 != nullptr) {
+        $$->right_values.swap(*$6);
+      }
+      $$->right_values.emplace_back(*$5);
+      $$->comp = NOT_IN_OP;
+
+      delete $1;
       delete $5;
     }
     ;
