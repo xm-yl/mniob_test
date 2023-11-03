@@ -174,6 +174,14 @@ public:
 
   RC get_value(const Tuple &tuple, Value &value) const override{
     // 当试图从subquery中拿一个值出来的时候，如果查询结果有多行，那么就禁止这次偶作。
+    if(values_.empty()){
+      Value tmp;
+      tmp.set_null(true);
+      tmp.set_type(AttrType::INTS);
+      tmp.set_length((int)sizeof(int));
+      value = tmp;
+      return RC::SUCCESS;
+    }
     if(this->value_num() != 1){
       LOG_WARN("Only use when aggregation func is used and subquery has single value. However sub_query get %d values", this->value_num());
       return RC::INTERNAL;

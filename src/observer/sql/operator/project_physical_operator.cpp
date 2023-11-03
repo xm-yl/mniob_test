@@ -48,9 +48,12 @@ RC ProjectPhysicalOperator::next(Tuple* outer_tuple)
   }
   this->debug_cnt++;
   if (is_aggregate && !finish_aggregate){
-    while(RC::SUCCESS == (children_[0]->next(outer_tuple))){
+    while(RC::SUCCESS == (rc = children_[0]->next(outer_tuple))){
       tuple_.set_tuple(children_[0]->current_tuple());
       aggregate(&tuple_);
+    }
+    if(rc != RC::SUCCESS && rc != RC::RECORD_EOF){
+      return rc;
     }
     process_aggr_record();
     finish_aggregate = true;

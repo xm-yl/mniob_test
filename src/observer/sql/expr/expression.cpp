@@ -69,14 +69,6 @@ RC SubQueryExpr::get_values(const Tuple& tuple, std::vector<Value> &result) {
   if(rc != RC::SUCCESS){
     return rc;
   }
-  //pad with a null value when no return values for sub.
-  if(tuple_num_from_sub_query == 0) {
-    Value tmp;
-    tmp.set_null(true);
-    tmp.set_type(AttrType::INTS);
-    tmp.set_length((int)sizeof(int));
-    values_.push_back(tmp);
-  }
   result = values_;
   return rc;
 }
