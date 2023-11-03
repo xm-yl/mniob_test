@@ -156,6 +156,22 @@ RC Table::create(int32_t table_id,
     return rc;
   }
 
+  bool has_texts = false;
+
+  for(int i = 0;i < attribute_count; i++) {
+    if(attributes[i].type == AttrType::TEXTS) {
+      has_texts = true;
+      break;
+    }
+  }
+
+  if(has_texts) {
+    std::string text_file = table_text_file(base_dir, name);
+    rc = bpm.create_file(text_file.c_str());
+  }
+
+
+
   rc = init_record_handler(base_dir);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to create table %s due to init record handler failed.", data_file.c_str());

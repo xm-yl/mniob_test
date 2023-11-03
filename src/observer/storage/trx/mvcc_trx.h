@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "storage/trx/trx.h"
+#include "storage/index/index.h"
 
 class CLogManager;
 
@@ -93,7 +94,9 @@ public:
 private:
   RC commit_with_trx_id(int32_t commit_id);
   void trx_fields(Table *table, Field &begin_xid_field, Field &end_xid_field) const;
-
+  void create_index_keys(Index* index, Record &record, char* &l_key, char* &r_key, int& len);
+  RC get_rc(int32_t begin_xid, int32_t end_xid, bool readonly);
+  bool unique_index_dup(Table* table, Record & record);
 private:
   static const int32_t MAX_TRX_ID = std::numeric_limits<int32_t>::max();
 

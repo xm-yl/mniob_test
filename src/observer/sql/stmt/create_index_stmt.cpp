@@ -49,6 +49,11 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
     }
     field_metas.push_back(table->table_meta().field(create_index.attribute_name[i].c_str()));
   }
+
+  //加入系统字段 for mvcc
+  for(int i = 0 ; i < table->table_meta().sys_field_num() ; i++){
+    field_metas.push_back(table->table_meta().field(i));
+  }
   // const FieldMeta *field_meta = table->table_meta().field(create_index.attribute_name.c_str());
   // if (nullptr == field_meta) {
   //   LOG_WARN("no such field in table. db=%s, table=%s, field name=%s", 

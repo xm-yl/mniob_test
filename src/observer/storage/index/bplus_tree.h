@@ -555,7 +555,9 @@ public:
    */
   bool validate_tree();
 
-  bool is_unique() const ;
+  bool is_unique() const {
+    return is_unique_;
+  }
 
 public:
   /**

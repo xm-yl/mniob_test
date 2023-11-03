@@ -54,7 +54,7 @@ int32_t MvccTrxKit::next_trx_id()
 
 int32_t MvccTrxKit::max_trx_id() const
 {
-  return numeric_limits<int32_t>::max();
+  return numeric_limits<int32_t>::max() / 10;
 }
 
 Trx *MvccTrxKit::create_trx(CLogManager *log_manager)
@@ -132,6 +132,91 @@ MvccTrx::~MvccTrx()
 {
 }
 
+
+void MvccTrx::create_index_keys(Index* index, Record &record, char* &l_key, char* &r_key, int &attr_len) {
+  auto metas = index->field_metas();
+
+  for(int i = 0;i < metas.size(); i++){
+    attr_len += metas[i].len();
+  }
+  //初始化字段拼接是index里面的record数据
+  l_key = new char[attr_len];
+  r_key = new char[attr_len];
+
+  memset(l_key, 0, attr_len);
+  memset(r_key, 0, attr_len);
+
+  int offset = 0;
+  for(int i = 0;i < int(metas.size()) - 2; i++){
+    int field_len = metas[i].len();
+    int field_offset = metas[i].offset();
+    memcpy(l_key + offset, record.data() + field_offset, field_len);
+    memcpy(r_key + offset, record.data() + field_offset, field_len);
+    offset += field_len;
+  }
+  int l_least = -trx_kit_.max_trx_id();
+  int r_most = trx_kit_.max_trx_id();
+
+  memcpy(l_key + offset, &l_least, sizeof(l_least));
+  memcpy(l_key + offset + sizeof(l_least), &l_least, sizeof(l_least));
+
+  memcpy(r_key + offset, &r_most, sizeof(r_most));
+  memcpy(r_key + offset + sizeof(r_most), &r_most, sizeof(r_most));
+}
+
+bool MvccTrx::unique_index_dup(Table* table, Record & record) {
+  Field begin_field;
+  Field end_field;
+  trx_fields(table, begin_field, end_field);
+
+  auto indexes = table->indexes();
+  for (auto & index: indexes) {
+    if (index->is_unique() == false) continue;
+
+    char* l = nullptr, *r = nullptr;
+    int len = 0;
+
+    create_index_keys(index, record, l, r, len);
+    auto scanner = index->create_scanner(l, len, true, r, len, true);
+    if(scanner == nullptr) continue;
+
+    RID rid;
+    Record index_record;
+    RC rc = RC::SUCCESS;
+    while((rc = scanner->next_entry(&rid)) == RC::SUCCESS) {
+      table->get_record(rid, index_record);
+
+      int begin_xid = begin_field.get_int(index_record), end_xid = end_field.get_int(index_record);
+
+      if (begin_xid > 0 && end_xid > 0) {
+        if (trx_id_ >= begin_xid && trx_id_ <= end_xid) {
+          rc = RC::SUCCESS;
+        } else {
+          rc = RC::RECORD_INVISIBLE;
+        }
+      } else {
+        rc = RC::SUCCESS;
+      }
+
+
+
+      if(rc == RC::SUCCESS) {
+        delete []l;
+        delete []r;
+        scanner->destroy();
+        LOG_DEBUG("record dup in insert");
+        return true;
+      }
+    }
+
+    scanner->destroy();
+    delete []l;
+    delete []r;
+  }
+  return false;
+}
+
+
 RC MvccTrx::insert_record(Table *table, Record &record)
 {
   Field begin_field;
@@ -140,6 +225,11 @@ RC MvccTrx::insert_record(Table *table, Record &record)
 
   begin_field.set_int(record, -trx_id_);
   end_field.set_int(record, trx_kit_.max_trx_id());
+
+  if (this->unique_index_dup(table, record) == true) {
+      LOG_DEBUG("record dup in insert");
+    return RC::RECORD_DUPLICATE_KEY;
+  }
 
   RC rc = table->insert_record(record);
   if (rc != RC::SUCCESS) {
@@ -174,8 +264,18 @@ RC MvccTrx::delete_record(Table * table, Record &record)
     // 当前不是多版本数据中的最新记录，不需要删除
     return RC::SUCCESS;
   }
-  
+
+  for(auto &index: table->indexes()) {
+    if(index->is_unique() == false) continue;
+    index->delete_entry(record.data(), &record.rid());
+  }
   end_field.set_int(record, -trx_id_);
+
+  for(auto &index: table->indexes()) {
+    if(index->is_unique() == false) continue;
+    index->insert_entry(record.data(), &record.rid());
+  }
+  
   RC rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
   ASSERT(rc == RC::SUCCESS, "failed to append delete record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
@@ -186,6 +286,10 @@ RC MvccTrx::delete_record(Table * table, Record &record)
 }
 
 RC MvccTrx::update_record(Table *table, Record &record, std::vector<const Value*> update_values,std::vector<const FieldMeta*> update_fields) {
+  Field begin_field;
+  Field end_field;
+  trx_fields(table, begin_field, end_field);
+
   Record updated_record;
   //make a copy of original and update it
   RC rc = RC::SUCCESS;
@@ -195,11 +299,13 @@ RC MvccTrx::update_record(Table *table, Record &record, std::vector<const Value*
 
   // update the values one by one.
   const int sys_field_num = table_meta_.sys_field_num();
+  int sys_len = 0;
+  for(int i = 0;i < sys_field_num; i++) sys_len += table_meta_.field(i)->len();
   const int field_num = table_meta_.field_num() - sys_field_num;
   for(int i = 0; i < update_fields.size(); i++ ){
     AttrType update_value_type = update_values.at(i)->attr_type();
     const FieldMeta *update_field_meta = update_fields.at(i);
-    int update_location = 0;
+    int update_location = sys_len;
     int update_field_length = 0;
     
     //Get the offset of updating values.(update_location)
@@ -232,27 +338,51 @@ RC MvccTrx::update_record(Table *table, Record &record, std::vector<const Value*
   }
 
   updated_record.set_data_owner(r, table_meta_.record_size());
-  rc = this->delete_record(table, record);
-  if(OB_FAIL(rc)) {
-    LOG_WARN("mvcc update record failed: rc", strrc(rc));
+  begin_field.set_int(updated_record, -trx_id_);
+  end_field.set_int(updated_record, trx_kit_.max_trx_id());
+
+  if (this->unique_index_dup(table, updated_record) == true) {
+      LOG_DEBUG("record dup in insert");
+    return RC::RECORD_DUPLICATE_KEY;
+  }
+
+  //delete
+  bool need_delete = true;
+  [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
+  if (end_xid != trx_kit_.max_trx_id()) {
+    need_delete = false;
+  }
+
+  //insert
+
+  rc = table->insert_record(updated_record);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to insert record into table. rc=%s", strrc(rc));
     return rc;
   }
-  rc = this->insert_record(table, updated_record);
+
+  end_field.set_int(record, -trx_id_);
+  if(need_delete) {
+    rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
+    operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
+  }
+
+  rc = log_manager_->append_log(CLogType::INSERT, trx_id_, table->table_id(), updated_record.rid(), 
+    updated_record.len(), 0/*offset*/, updated_record.data());
+  pair<OperationSet::iterator, bool> ret = 
+        operations_.insert(Operation(Operation::Type::INSERT, table, updated_record.rid()));
+  if (!ret.second) {
+    rc = RC::INTERNAL;
+    LOG_WARN("failed to insert operation(insertion) into operation set: duplicate");
+  }
+
   if(OB_FAIL(rc)) {
     LOG_WARN("mvcc update record failed: rc", strrc(rc));
   }
   return rc;
 }
 
-RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
-{
-  Field begin_field;
-  Field end_field;
-  trx_fields(table, begin_field, end_field);
-
-  int32_t begin_xid = begin_field.get_int(record);
-  int32_t end_xid = end_field.get_int(record);
-
+RC MvccTrx::get_rc(int32_t begin_xid, int32_t end_xid, bool readonly) {
   RC rc = RC::SUCCESS;
   if (begin_xid > 0 && end_xid > 0) {
     if (trx_id_ >= begin_xid && trx_id_ <= end_xid) {
@@ -276,6 +406,18 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
     }
   }
   return rc;
+}
+
+RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
+{
+  Field begin_field;
+  Field end_field;
+  trx_fields(table, begin_field, end_field);
+
+  int32_t begin_xid = begin_field.get_int(record);
+  int32_t end_xid = end_field.get_int(record);
+
+  return get_rc(begin_xid, end_xid, readonly);
 }
 
 /**
@@ -329,6 +471,27 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
         Table *table = operation.table();
         Field begin_xid_field, end_xid_field;
         trx_fields(table, begin_xid_field, end_xid_field);
+
+
+        Record record;
+        rc = table->get_record(rid, record); 
+        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+               rid.to_string().c_str(), strrc(rc));
+        for(auto index: table->indexes()) {
+          if(index->is_unique() == false) continue;
+          rc = index->delete_entry(record.data(), &rid);
+          ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+               rid.to_string().c_str(), strrc(rc));
+        }
+
+        begin_xid_field.set_int(record, commit_xid);
+
+        for(auto index: table->indexes()) {
+          if(index->is_unique() == false) continue;
+          rc = index->insert_entry(record.data(), &rid);
+          ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+               rid.to_string().c_str(), strrc(rc));
+        }
 
         auto record_updater = [ this, &begin_xid_field, commit_xid](Record &record) {
           LOG_DEBUG("before commit insert record. trx id=%d, begin xid=%d, commit xid=%d, lbt=%s",
@@ -412,6 +575,26 @@ RC MvccTrx::rollback()
               rid.to_string().c_str(), strrc(rc));
         Field begin_xid_field, end_xid_field;
         trx_fields(table, begin_xid_field, end_xid_field);
+
+        Record record;
+        rc = table->get_record(rid, record); 
+        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+               rid.to_string().c_str(), strrc(rc));
+        for(auto index: table->indexes()) {
+          if(index->is_unique() == false) continue;
+          rc = index->delete_entry(record.data(), &rid);
+        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+               rid.to_string().c_str(), strrc(rc));
+        }
+
+        end_xid_field.set_int(record, trx_kit_.max_trx_id());
+
+        for(auto index: table->indexes()) {
+          if(index->is_unique() == false) continue;
+          rc = index->insert_entry(record.data(), &rid);
+        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+               rid.to_string().c_str(), strrc(rc));
+        }
 
         auto record_updater = [this, &end_xid_field](Record &record) {
           ASSERT(end_xid_field.get_int(record) == -trx_id_, 

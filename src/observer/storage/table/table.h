@@ -116,11 +116,16 @@ private:
 public:
   Index *find_index(const char *index_name) const;
   Index *find_index_by_field(const char *field_name) const;
+  std::vector<Index *> indexes() {
+    return indexes_;
+  }
 
 private:
   std::string base_dir_;
   TableMeta   table_meta_;
   DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
   RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
+  DiskBufferPool *text_buffer_pool_ = nullptr;
+  RecordFileHandler *text_handler = nullptr;
   std::vector<Index *> indexes_;
 };
