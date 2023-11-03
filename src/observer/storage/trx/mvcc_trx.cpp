@@ -147,7 +147,7 @@ void MvccTrx::create_index_keys(Index* index, Record &record, char* &l_key, char
   memset(r_key, 0, attr_len);
 
   int offset = 0;
-  for(int i = 0;i < int(metas.size()) - 2; i++){
+  for(int i = 0;i < int(metas.size()) - 1; i++){
     int field_len = metas[i].len();
     int field_offset = metas[i].offset();
     memcpy(l_key + offset, record.data() + field_offset, field_len);
@@ -158,10 +158,8 @@ void MvccTrx::create_index_keys(Index* index, Record &record, char* &l_key, char
   int r_most = trx_kit_.max_trx_id();
 
   memcpy(l_key + offset, &l_least, sizeof(l_least));
-  memcpy(l_key + offset + sizeof(l_least), &l_least, sizeof(l_least));
 
   memcpy(r_key + offset, &r_most, sizeof(r_most));
-  memcpy(r_key + offset + sizeof(r_most), &r_most, sizeof(r_most));
 }
 
 bool MvccTrx::unique_index_dup(Table* table, Record & record) {
@@ -186,19 +184,22 @@ bool MvccTrx::unique_index_dup(Table* table, Record & record) {
     while((rc = scanner->next_entry(&rid)) == RC::SUCCESS) {
       table->get_record(rid, index_record);
 
-      int begin_xid = begin_field.get_int(index_record), end_xid = end_field.get_int(index_record);
+      int end_xid = end_field.get_int(index_record);
 
-      if (begin_xid > 0 && end_xid > 0) {
-        if (trx_id_ >= begin_xid && trx_id_ <= end_xid) {
+      if (end_xid > 0) {
+        if (trx_id_ <= end_xid) {
           rc = RC::SUCCESS;
         } else {
           rc = RC::RECORD_INVISIBLE;
         }
       } else {
-        rc = RC::SUCCESS;
+        if(-end_xid == trx_id_) {
+          //delete by my self;
+          rc = RC::RECORD_INVISIBLE;
+        } else {
+          rc = RC::SUCCESS;
+        }
       }
-
-
 
       if(rc == RC::SUCCESS) {
         delete []l;
@@ -269,6 +270,7 @@ RC MvccTrx::delete_record(Table * table, Record &record)
     if(index->is_unique() == false) continue;
     index->delete_entry(record.data(), &record.rid());
   }
+
   end_field.set_int(record, -trx_id_);
 
   for(auto &index: table->indexes()) {
@@ -341,30 +343,37 @@ RC MvccTrx::update_record(Table *table, Record &record, std::vector<const Value*
   begin_field.set_int(updated_record, -trx_id_);
   end_field.set_int(updated_record, trx_kit_.max_trx_id());
 
+
+  for(auto &index: table->indexes()) {
+    if(index->is_unique() == false) continue;
+    index->delete_entry(record.data(), &record.rid());
+  }
+
   if (this->unique_index_dup(table, updated_record) == true) {
-      LOG_DEBUG("record dup in insert");
+    for(auto &index: table->indexes()) {
+      if(index->is_unique() == false) continue;
+      index->insert_entry(record.data(), &record.rid());
+    }
+    LOG_DEBUG("record dup in insert");
     return RC::RECORD_DUPLICATE_KEY;
   }
 
+
   //delete
-  bool need_delete = true;
-  [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
-  if (end_xid != trx_kit_.max_trx_id()) {
-    need_delete = false;
+  end_field.set_int(record, -trx_id_);
+  for(auto &index: table->indexes()) {
+    if(index->is_unique() == false) continue;
+    index->insert_entry(record.data(), &record.rid());
   }
 
-  //insert
+  rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
+  operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
 
+  //insert
   rc = table->insert_record(updated_record);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to insert record into table. rc=%s", strrc(rc));
     return rc;
-  }
-
-  end_field.set_int(record, -trx_id_);
-  if(need_delete) {
-    rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
-    operations_.insert(Operation(Operation::Type::DELETE, table, record.rid()));
   }
 
   rc = log_manager_->append_log(CLogType::INSERT, trx_id_, table->table_id(), updated_record.rid(), 
@@ -472,34 +481,14 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
         Field begin_xid_field, end_xid_field;
         trx_fields(table, begin_xid_field, end_xid_field);
 
-
-        Record record;
-        rc = table->get_record(rid, record); 
-        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
-               rid.to_string().c_str(), strrc(rc));
-        for(auto index: table->indexes()) {
-          if(index->is_unique() == false) continue;
-          rc = index->delete_entry(record.data(), &rid);
-          ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
-               rid.to_string().c_str(), strrc(rc));
-        }
-
-        begin_xid_field.set_int(record, commit_xid);
-
-        for(auto index: table->indexes()) {
-          if(index->is_unique() == false) continue;
-          rc = index->insert_entry(record.data(), &rid);
-          ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
-               rid.to_string().c_str(), strrc(rc));
-        }
-
-        auto record_updater = [ this, &begin_xid_field, commit_xid](Record &record) {
+        auto record_updater = [this, &begin_xid_field, commit_xid, table](Record &record) {
           LOG_DEBUG("before commit insert record. trx id=%d, begin xid=%d, commit xid=%d, lbt=%s",
                     trx_id_, begin_xid_field.get_int(record), commit_xid, lbt());
           ASSERT(begin_xid_field.get_int(record) == -this->trx_id_, 
                  "got an invalid record while committing. begin xid=%d, this trx id=%d", 
                  begin_xid_field.get_int(record), trx_id_);
 
+          RC rc = RC::SUCCESS;
           begin_xid_field.set_int(record, commit_xid);
         };
 
@@ -515,13 +504,23 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
         Field begin_xid_field, end_xid_field;
         trx_fields(table, begin_xid_field, end_xid_field);
 
-        auto record_updater = [this, &end_xid_field, commit_xid](Record &record) {
+        auto record_updater = [this, &end_xid_field, commit_xid, table](Record &record) {
           (void)this;
           ASSERT(end_xid_field.get_int(record) == -trx_id_, 
                  "got an invalid record while committing. end xid=%d, this trx id=%d", 
                  end_xid_field.get_int(record), trx_id_);
                 
+          for(auto &index: table->indexes()) {
+            if(index->is_unique() == false) continue;
+            index->delete_entry(record.data(), &record.rid());
+          }
+
           end_xid_field.set_int(record, commit_xid);
+
+          for(auto &index: table->indexes()) {
+            if(index->is_unique() == false) continue;
+            index->insert_entry(record.data(), &record.rid());
+          }
         };
 
         rc = operation.table()->visit_record(rid, false/*readonly*/, record_updater);
@@ -576,32 +575,27 @@ RC MvccTrx::rollback()
         Field begin_xid_field, end_xid_field;
         trx_fields(table, begin_xid_field, end_xid_field);
 
-        Record record;
-        rc = table->get_record(rid, record); 
-        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
-               rid.to_string().c_str(), strrc(rc));
-        for(auto index: table->indexes()) {
-          if(index->is_unique() == false) continue;
-          rc = index->delete_entry(record.data(), &rid);
-        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
-               rid.to_string().c_str(), strrc(rc));
-        }
-
-        end_xid_field.set_int(record, trx_kit_.max_trx_id());
-
-        for(auto index: table->indexes()) {
-          if(index->is_unique() == false) continue;
-          rc = index->insert_entry(record.data(), &rid);
-        ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
-               rid.to_string().c_str(), strrc(rc));
-        }
-
-        auto record_updater = [this, &end_xid_field](Record &record) {
+        auto record_updater = [this, &end_xid_field, table](Record &record) {
           ASSERT(end_xid_field.get_int(record) == -trx_id_, 
                 "got an invalid record while rollback. end xid=%d, this trx id=%d", 
                 end_xid_field.get_int(record), trx_id_);
 
+          RC rc = RC::SUCCESS;
+          for(auto index: table->indexes()) {
+            if(index->is_unique() == false) continue;
+            rc = index->delete_entry(record.data(), &record.rid());
+            ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+                rid.to_string().c_str(), strrc(rc));
+          }
+
           end_xid_field.set_int(record, trx_kit_.max_trx_id());
+
+          for(auto index: table->indexes()) {
+            if(index->is_unique() == false) continue;
+            rc = index->insert_entry(record.data(), &record.rid());
+            ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s", 
+                rid.to_string().c_str(), strrc(rc));
+          }
         };
         
         rc = table->visit_record(rid, false/*readonly*/, record_updater);

@@ -49,7 +49,7 @@ public:
 private:
   std::vector<FieldMeta> fields_; // 存储事务数据需要用到的字段元数据，所有表结构都需要带的
 
-  std::atomic<int32_t> current_trx_id_{0};
+  std::atomic<int32_t> current_trx_id_{1};
 
   common::Mutex      lock_;
   std::vector<Trx *> trxes_;

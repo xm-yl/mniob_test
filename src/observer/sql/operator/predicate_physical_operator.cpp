@@ -42,6 +42,10 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     if(children_[i] == nullptr) continue;
     rc = children_[i]->open(trx);
 
+    if(rc != RC::SUCCESS) {
+      if(rc == RC::RECORD_EOF) continue;
+      return rc;
+    }
     // if(i != (children_.size() -1) && children_[i]->current_tuple()->cell_num() > 1){
     //   LOG_WARN("Multiple cell in sub query is not allowed for now");
     //   return RC::INTERNAL;
