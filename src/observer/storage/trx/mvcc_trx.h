@@ -90,6 +90,7 @@ public:
   RC redo(Db *db, const CLogRecord &log_record) override;
 
   int32_t id() const override { return trx_id_; }
+  RC rollback_n(int n) override;
 
 private:
   RC commit_with_trx_id(int32_t commit_id);
@@ -101,11 +102,12 @@ private:
   static const int32_t MAX_TRX_ID = std::numeric_limits<int32_t>::max();
 
 private:
-  using OperationSet = std::unordered_set<Operation, OperationHasher, OperationEqualer>;
+  using OperationSet = std::set<Operation>;
   MvccTrxKit & trx_kit_;
   CLogManager *log_manager_ = nullptr;
   int32_t      trx_id_ = -1;
   bool         started_ = false;
   bool         recovering_ = false;
   OperationSet operations_;
+  int operation_order_ = 0;
 };

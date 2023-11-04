@@ -48,6 +48,7 @@ public:
   RC start_if_need() override;
   RC commit() override;
   RC rollback() override;
+  RC rollback_n(int n) override;
 
   int32_t id() const override { return 0; }
 };

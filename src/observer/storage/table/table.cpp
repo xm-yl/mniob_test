@@ -536,28 +536,26 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
   ASSERT(RC::SUCCESS == rc, "failed to remove the original index, %s",strrc(rc));
 
   // update the values one by one.
-  const int sys_field_num = table_meta_.sys_field_num();
-  const int field_num = table_meta_.field_num() - sys_field_num;
   for(int i = 0; i < update_fields.size(); i++ ){
-    AttrType update_value_type = update_values.at(i)->attr_type();
     const FieldMeta *update_field_meta = update_fields.at(i);
     int update_location = 0;
-    int update_field_length = 0;
+    int update_field_length = update_field_meta->len();
     
     //Get the offset of updating values.(update_location)
-    for(int j = 0; j < field_num;j++){
-      const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
-      AttrType field_type = field_meta->type();
-      const char * field_name = field_meta->name();
+    // for(int j = 0; j < field_num;j++){
+    //   const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
+    //   AttrType field_type = field_meta->type();
+    //   const char * field_name = field_meta->name();
     
-      //check the validation of the value type and name.
-      if(strcmp(field_name,update_field_meta->name())==0){
-        update_field_length = field_meta->len();
-        break;
-      }
-      update_location += field_meta->len();
-    }
-    
+    //   //check the validation of the value type and name.
+    //   if(strcmp(field_name,update_field_meta->name())==0){
+    //     update_field_length = field_meta->len();
+    //     break;
+    //   }
+    //   //update_location += field_meta->len();
+
+    // }
+    update_location = update_field_meta->offset();
     // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
     // update by memcpy
     char *tmp = new char[update_field_length];

@@ -56,11 +56,12 @@ public:
   };
 
 public:
-  Operation(Type type, Table *table, const RID &rid) 
+  Operation(Type type, Table *table, const RID &rid, const int32_t order) 
       : type_(type), 
         table_(table),
         page_num_(rid.page_num), 
-        slot_num_(rid.slot_num)
+        slot_num_(rid.slot_num),
+        trx_order_(order)
   {}
 
   Type    type() const { return type_; }
@@ -68,6 +69,9 @@ public:
   Table * table() const { return table_; }
   PageNum page_num() const { return page_num_; }
   SlotNum slot_num() const { return slot_num_; }
+  bool operator < (const Operation &rhs) const {
+    return trx_order_;
+  }
 
 private:
   ///< 操作的哪张表。这里直接使用表其实并不准确，因为表中的索引也可能有日志
@@ -76,6 +80,7 @@ private:
   Table * table_ = nullptr;
   PageNum page_num_; // TODO use RID instead of page num and slot num
   SlotNum slot_num_;
+  int32_t trx_order_ = 0;
 };
 
 class OperationHasher 
@@ -153,6 +158,7 @@ public:
   virtual RC start_if_need() = 0;
   virtual RC commit() = 0;
   virtual RC rollback() = 0;
+  virtual RC rollback_n(int n) = 0;
 
   virtual RC redo(Db *db, const CLogRecord &log_record);
 
