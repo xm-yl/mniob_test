@@ -40,7 +40,7 @@ RC ProjectPhysicalOperator::open(Trx *trx)
   return RC::SUCCESS;
 }
 
-RC ProjectPhysicalOperator::next()
+RC ProjectPhysicalOperator::next(Tuple* outer_tuple)
 { 
   RC rc = RC::SUCCESS;
   if (children_.empty()) {
@@ -48,21 +48,26 @@ RC ProjectPhysicalOperator::next()
   }
   this->debug_cnt++;
   if (is_aggregate && !finish_aggregate){
-    while(RC::SUCCESS == (children_[0]->next())){
+    while(RC::SUCCESS == (rc = children_[0]->next(outer_tuple))){
       tuple_.set_tuple(children_[0]->current_tuple());
       aggregate(&tuple_);
+    }
+    if(rc != RC::SUCCESS && rc != RC::RECORD_EOF){
+      return rc;
     }
     process_aggr_record();
     finish_aggregate = true;
 
-    //TODO 这里的边界条件还是有点问题, 如果聚合函数没有接受到数据,这里应应该返回EOF
+    //#TODO 这里的边界条件还是有点问题, 如果聚合函数没有接受到数据,这里应应该返回EOF
     if (aggr_result__.empty()){
       pad_aggr_result();
     }
-    rc = RC::SUCCESS;
+    if(rc == RC::RECORD_EOF){
+      rc = RC::SUCCESS;
+    }
   }
   else if(!is_aggregate){
-    rc = children_[0]->next();
+    rc = children_[0]->next(outer_tuple);
     if(rc!=RC::SUCCESS) return rc;
   }
   else if(is_aggregate && finish_aggregate){
@@ -75,6 +80,13 @@ RC ProjectPhysicalOperator::close()
 {
   if (!children_.empty()) {
     children_[0]->close();
+  }
+  // clear the aggregation token.
+  if (finish_aggregate){
+    finish_aggregate = false;
+    aggr_result__.clear();
+    count = 0;
+    null_count = 0;
   }
   return RC::SUCCESS;
 }
@@ -216,7 +228,7 @@ void ProjectPhysicalOperator::add_projection(const Table *table, const FieldMeta
 {
   // 对单表来说，展示的(alias) 字段总是字段名称，
   // 对多表查询来说，展示的alias 需要带表名字
-  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name());
+  TupleCellSpec *spec = new TupleCellSpec(table->name(), field_meta->name(), field_meta->name()); // #TODO alias
   tuple_.add_cell_spec(spec);
 }
 

@@ -85,11 +85,13 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
         DOT //QUOTE
         INTO
         VALUES
+        AS
         FROM
         INNER
         JOIN
         WHERE
         AND
+        OR
         SET
         ON
         LOAD
@@ -177,7 +179,7 @@ ArithmeticExpr *create_arithmetic_expression(ArithmeticExpr::Type type,
 %type <condition_list>      condition_list
 %type <condition_list>      on_condition_exprs
 %type <rel_attr_list>       select_attr
-%type <relation_list>       rel_list
+%type <rel_attr_list>       rel_list
 %type <index_list>          ind_list
 %type <rel_attr_list>       attr_list
 %type <rel_attr_list>       aggr_func_list
@@ -689,35 +691,31 @@ order_by:
   ;
 
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where order_by
+    SELECT select_attr FROM rel_list where order_by
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
-      if ($5 != nullptr) {
-        /* join with COMMA represents empty on condition */
-        for (int i = 0;i < (int)$5->size(); i++) {
+      if ($4 != nullptr){
+        for(auto itr = $4->rbegin(); itr < $4->rend(); itr ++){
           $$->selection.on_conditions.push_back(vector<ConditionSqlNode>());
+          $$->selection.relations.push_back(itr->relation_name);
+          $$->selection.rel_alias.push_back(itr->alias);
         }
+        delete $4;
+      }
 
-        $$->selection.relations.swap(*$5);
+      if ($5 != nullptr) {
+        $$->selection.conditions.swap(*$5);
         delete $5;
       }
-      $$->selection.relations.push_back($4);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
 
       if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
-        delete $6;
-      }
-      free($4);
-
-      if ($7 != nullptr) {
-        $$->selection.order_bys.swap(*$7);
+        $$->selection.order_bys.swap(*$6);
         std::reverse($$->selection.order_bys.begin(), $$->selection.order_bys.end());
-        delete $7;
+        delete $6;
       } 
     }
     | SELECT select_attr FROM ID join_table join_tables where order_by
@@ -728,17 +726,19 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       $$->selection.relations.push_back($4);
-      
+      $$->selection.rel_alias.push_back(std::string());
       if ($6 != nullptr) {
         int i = 0;
         for(i = 0; i < (int)$6->size(); i++) {
           $$->selection.relations.push_back((*$6)[i].table_name);
+          $$->selection.rel_alias.push_back(std::string());
           $$->selection.on_conditions.push_back((*$6)[i].on_conditions);
         }
         delete $6;
       }
       $$->selection.relations.push_back($5->table_name);
       $$->selection.on_conditions.push_back($5->on_conditions);
+      $$->selection.rel_alias.push_back(std::string());
       std::reverse($$->selection.relations.begin() + 1, $$->selection.relations.end());
       std::reverse($$->selection.on_conditions.begin(), $$->selection.on_conditions.end());
       delete $5;
@@ -861,11 +861,45 @@ aggr_func:
     $$->attribute_name = '*';
     $$->aggr_op = $1;
   }
+  | aggr_op LBRACE '*' RBRACE AS ID{
+    $$ = new RelAttrSqlNode;
+    $$->relation_name = "";
+    $$->attribute_name = '*';
+    $$->alias = $6;
+    $$->aggr_op = $1;
+
+    free($6);
+  }
+  | aggr_op LBRACE '*' RBRACE ID {
+    $$ = new RelAttrSqlNode;
+    $$->relation_name = "";
+    $$->attribute_name = '*';
+    $$->alias = $5;
+    $$->aggr_op = $1;
+
+    free($5);
+  }
   | aggr_op LBRACE ID RBRACE {
     $$ = new RelAttrSqlNode;
     $$->attribute_name = $3;
     $$->aggr_op = $1;
     free($3);    
+  }
+  | aggr_op LBRACE ID RBRACE AS ID{
+    $$ = new RelAttrSqlNode;
+    $$->attribute_name = $3;
+    $$->alias = $6;
+    $$->aggr_op = $1;
+    free($3); 
+    free($6);
+  }
+  | aggr_op LBRACE ID RBRACE ID{
+    $$ = new RelAttrSqlNode;
+    $$->attribute_name = $3;
+    $$->alias = $5;
+    $$->aggr_op = $1;
+    free($3); 
+    free($5);
   }
   | aggr_op LBRACE ID DOT ID RBRACE {
       $$ = new RelAttrSqlNode;
@@ -874,6 +908,26 @@ aggr_func:
       $$->aggr_op = $1;
       free($3);
       free($5);
+  }
+  | aggr_op LBRACE ID DOT ID RBRACE AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $3;
+      $$->attribute_name = $5;
+      $$->alias = $8;
+      $$->aggr_op = $1;
+      free($3);
+      free($5);
+      free($8);
+  }
+  | aggr_op LBRACE ID DOT ID RBRACE ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $3;
+      $$->attribute_name = $5;
+      $$->alias = $7;
+      $$->aggr_op = $1;
+      free($3);
+      free($5);
+      free($7);
   }
   ;
 
@@ -894,7 +948,13 @@ aggr_func_list:
     ;
 
 rel_attr:
-    ID {
+    ID DOT '*'{
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = "*";
+      free($1);
+    }
+    | ID {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
       free($1);
@@ -905,6 +965,38 @@ rel_attr:
       $$->attribute_name = $3;
       free($1);
       free($3);
+    }
+    | ID AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $1;
+      $$->alias = $3;
+      free($1);
+      free($3);
+    }
+    | ID ID{
+      $$ = new RelAttrSqlNode;
+      $$->attribute_name = $1;
+      $$->alias = $2;
+      free($1);
+      free($2);
+    }
+    | ID DOT ID AS ID{
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $5;
+      free($1);
+      free($3);
+      free($5);
+    }
+    | ID DOT ID ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = $3;
+      $$->alias = $4;
+      free($1);
+      free($3);
+      free($4);
     }
 
 attr_list:
@@ -923,21 +1015,68 @@ attr_list:
       delete $2;
     }
     ;
-
 rel_list:
-    /* empty */
-    {
-      $$ = nullptr;
+    ID{
+      $$ = new std::vector<RelAttrSqlNode>;
+      RelAttrSqlNode* this_rel = new RelAttrSqlNode();
+      this_rel->relation_name = $1;
+      $$->push_back(*this_rel);
+      
+      delete this_rel;
+      free($1);
     }
-    | COMMA ID rel_list {
-      if ($3 != nullptr) {
-        $$ = $3;
-      } else {
-        $$ = new std::vector<std::string>;
-      }
+    | ID COMMA rel_list{
+      $$ = $3;
+      RelAttrSqlNode* this_rel = new RelAttrSqlNode();
+      this_rel->relation_name = $1;
+      $$->push_back(*this_rel);
 
-      $$->push_back($2);
+      delete this_rel;
+      free($1);
+    }
+    | ID ID{
+      $$ = new std::vector<RelAttrSqlNode>;
+      RelAttrSqlNode* this_rel = new RelAttrSqlNode();
+      this_rel->relation_name = $1;
+      this_rel->alias =$2;
+      $$->push_back(*this_rel);
+      
+      delete this_rel;
+      free($1);
       free($2);
+    }
+    | ID AS ID {
+      $$ = new std::vector<RelAttrSqlNode>;
+      RelAttrSqlNode* this_rel = new RelAttrSqlNode();
+      this_rel->relation_name = $1;
+      this_rel->alias =$3;
+      $$->push_back(*this_rel);
+      
+      delete this_rel;
+      free($1);
+      free($3);
+    }
+    | ID ID COMMA rel_list{
+      $$ = $4;
+      RelAttrSqlNode* this_rel = new RelAttrSqlNode();
+      this_rel->relation_name = $1;
+      this_rel->alias = $2;
+      $$->push_back(*this_rel);
+      
+      delete this_rel;
+      free($1);
+      free($2);
+    }
+    | ID AS ID COMMA rel_list{
+      $$ = $5;
+      RelAttrSqlNode* this_rel = new RelAttrSqlNode();
+      this_rel->relation_name = $1;
+      this_rel->alias = $3;
+      $$->push_back(*this_rel);
+      
+      delete this_rel;
+      free($1);
+      free($3);
     }
     ;
 where:
@@ -963,6 +1102,12 @@ condition_list:
       $$ = $3;
       $$->emplace_back(*$1);
       delete $1;
+    }
+    | condition OR condition_list{
+      $$ = $3;
+      $$->emplace_back(*$1);
+      delete $1;
+      $$->front().is_or = true;
     }
     ;
 condition:
@@ -1190,6 +1335,23 @@ condition:
 
       delete $1;
       delete $5;
+    }
+    | LBRACE select_stmt RBRACE comp_op LBRACE select_stmt RBRACE
+    {
+      $$ = new ConditionSqlNode;
+      
+      $$->left_is_attr = 0;
+      $$->left_is_sub_query = 1;
+      $$->left_sub_query = std::make_shared<SelectSqlNode>($2->selection);
+     
+      $$->comp = $4;
+      
+      $$->right_is_attr = 0;
+      $$->right_is_sub_query = 1;
+      $$->right_sub_query = std::make_shared<SelectSqlNode>($6->selection);
+
+      delete $2;
+      delete $6;
     }
     ;
 

@@ -52,6 +52,7 @@ struct RelAttrSqlNode
 {
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
+  std::string alias;            ///< alias                       别名
   AggrOp aggr_op;
   RelAttrSqlNode() {
     aggr_op = AggrOp::NO_AGGR_OP;
@@ -103,9 +104,13 @@ struct ConditionSqlNode
 {
   int             left_is_attr;       ///< TRUE if left-hand side is an attribute
                                       ///< 1时，操作符左边是属性名，0时，是属性值
+  int             left_is_sub_query = 0;///1时，操作符左边是另外的一个子查询
   Value           left_value;         ///< left-hand side value if left_is_attr = FALSE
   RelAttrSqlNode  left_attr;          ///< left-hand side attribute
+  std::shared_ptr<SelectSqlNode> left_sub_query;
+  
   CompOp          comp;               ///< comparison operator
+  
   int             right_is_attr;      ///< TRUE if right-hand side is an attribute
                                       ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode  right_attr;         ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
@@ -113,6 +118,8 @@ struct ConditionSqlNode
   int             right_is_sub_query = 0; ///< 1时，操作符右边是另外的一个子查询
   std::shared_ptr<SelectSqlNode>  right_sub_query;    ///< right-hand side is another sub_query.
   std::vector<Value>     right_values;        ///<  right-hand side is a set.
+  
+  bool            is_or = false;      ///< 是否是用or串联起来的condition
   bool validate() {
     //LOG_DEBUG("conditions lvalue:%d rvalue:%d", left_value.attr_type(), right_value.attr_type());
     return left_value.validate() && right_value.validate();
@@ -134,6 +141,7 @@ struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
+  std::vector<std::string>        rel_alias;     ///< 查询的表的别名
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::vector<ConditionSqlNode>>   on_conditions;
   std::vector<OrderBySqlNode>     order_bys;

@@ -40,7 +40,7 @@ public:
   }
 
   RC open(Trx *trx) override;
-  RC next() override;
+  RC next(Tuple* outer_tuple = nullptr) override;
   RC close() override;
   void aggregate(ProjectTuple* current_tuple);
   
@@ -72,7 +72,7 @@ private:
   ProjectTuple tuple_;
   std::vector<AggrOp> aggr_ops_;
   std::vector<bool> is_star_;
-  std::vector<float> aggr_result_;
+  //std::vector<float> aggr_result_;
   //这里看看能不能写成AggregationTuple
   std::vector<Value> aggr_result__;
   AggregateTuple aggr_tuple_;

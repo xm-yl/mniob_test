@@ -37,10 +37,11 @@ public:
   }
 
   RC open(Trx *trx) override;
-  RC next() override;
+  RC next(Tuple* outer_tuple = nullptr) override;
   RC close() override;
   void debug_print_cnt_info_with_depth(int dep) override;
   // get the values of sub_query;
+  RC open_sub_query(Trx* trx);
   RC init_sub_query_expr();
   Tuple *current_tuple() override;
 

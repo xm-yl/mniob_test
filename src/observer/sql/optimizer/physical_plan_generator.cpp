@@ -195,26 +195,63 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
 
   //TODO 
   unique_ptr<Expression> expression = std::move(expressions.front());  // 这个expression 可能已经由rewrite改写过conjuctionExpr
-  oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));
+  ConjunctionExpr* pred_conj_expr = dynamic_cast<ConjunctionExpr*>(expression.get());
+  if(pred_conj_expr == nullptr){
+    LOG_WARN("Type convert to conj expr failed");
+    return RC::INTERNAL;
+  }
   
-  // 创建predicate下面的查询树,这个数量和需要调用(子查询+主查询)的数量相等.
-  for(int i = 0; i < children_opers.size(); i++){
-      LogicalOperator &child_oper = *children_opers.at(i);
-      unique_ptr<PhysicalOperator> child_phy_oper;
-      rc = create(child_oper, child_phy_oper);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to create child operator of predicate operator. rc=%s", strrc(rc));
+  // create sub query in comparsionExpr->(left,right)->
+  int right_debug_count = 0;
+  int left_debug_count = 0;
+  for(auto& children_expr:pred_conj_expr->children()){
+    ComparisonExpr* comp_child_expr = dynamic_cast<ComparisonExpr*> (children_expr.get());
+    //conj -> vector<Comparison>
+    if(comp_child_expr == nullptr){
+      LOG_WARN("Type convert to comparison expr failed");
+      return RC::INTERNAL;
+    }
+    //comparison -> (left , right) // 
+    if(comp_child_expr->left()->type() == ExprType::SUBQUERY){
+      SubQueryExpr* tmp = static_cast<SubQueryExpr*>(comp_child_expr->left().get());
+      left_debug_count++;
+      std::unique_ptr<LogicalOperator>& tmp_log_oper = tmp->get_sub_query_logical_oper();
+      unique_ptr<PhysicalOperator> sub_phy_oper;
+      rc = create(*tmp_log_oper,tmp->get_sub_query_physical_oper());
+      if(rc != RC::SUCCESS){
+        LOG_WARN("failed to create left child oper of predicate operator. rc=%s", strrc(rc));
         return rc;
       }
-      oper->add_child(std::move(child_phy_oper));
-    // }
+    }
+    if(comp_child_expr->right()->type() == ExprType::SUBQUERY){
+      SubQueryExpr* tmp = static_cast<SubQueryExpr*>(comp_child_expr->right().get());
+      // 
+      if(tmp->values().empty()){
+        right_debug_count++;
+        std::unique_ptr<LogicalOperator>& tmp_log_oper = tmp->get_sub_query_logical_oper();
+        unique_ptr<PhysicalOperator> sub_phy_oper;
+        rc = create(*tmp_log_oper,tmp->get_sub_query_physical_oper());
+        if(rc != RC::SUCCESS){
+          LOG_WARN("failed to create right child oper of predicate operator. rc=%s", strrc(rc));
+          return rc;
+        }
+      }
+    }
+    
   }
-  PredicatePhysicalOperator* oper_tmp = static_cast<PredicatePhysicalOperator*>(oper.get());
-  // RC rc2 = oper_tmp->init_sub_query_expr();
-  // if(rc2 != RC::SUCCESS || rc2 != RC::RECORD_EOF){
-  //   LOG_WARN("SubQuery format error");
-  //   return rc2;
-  // }
+  LOG_DEBUG("Create %d left sub query physical plan tree", left_debug_count);
+  LOG_DEBUG("Create %d rigth sub query physical plan tree", right_debug_count);
+  
+  //create oper and its children. 
+  oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));
+  LogicalOperator &child_oper = *children_opers.front();
+  unique_ptr<PhysicalOperator> child_phy_oper;
+  rc = create(child_oper, child_phy_oper);
+  if (rc != RC::SUCCESS){
+    LOG_WARN("failed to create child operator of predicate operator. rc=%s", strrc(rc));
+    return rc;
+  }
+  oper->add_child(std::move(child_phy_oper));
   return rc;
 }
 

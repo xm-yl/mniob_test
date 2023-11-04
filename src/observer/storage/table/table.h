@@ -128,4 +128,5 @@ private:
   DiskBufferPool *text_buffer_pool_ = nullptr;
   RecordFileHandler *text_handler = nullptr;
   std::vector<Index *> indexes_;
+  std::string alias_;                            /// 记录表的alias
 };

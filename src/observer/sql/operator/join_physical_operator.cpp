@@ -42,7 +42,7 @@ RC NestedLoopJoinPhysicalOperator::open(Trx *trx)
   return rc;
 }
 
-RC NestedLoopJoinPhysicalOperator::next()
+RC NestedLoopJoinPhysicalOperator::next(Tuple* outer_tuple)
 {
   this->debug_cnt++;
   bool left_need_step = (left_tuple_ == nullptr);
