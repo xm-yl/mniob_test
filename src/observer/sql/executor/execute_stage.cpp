@@ -75,8 +75,7 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
         AggrOp aggr_op = field.aggr_op();
         const char* table_name = field.table_name();
         const char* table_name_alias = field.table_name_alias();
-        const char* field_name = field.field_name();
-        const char* field_name_alias = field.get_name_with_oper();
+        const char* field_name = field.get_name_with_oper();
         LOG_DEBUG("This cell table name %s, field name %s", table_name,field_name);
         //没有聚合操作时的正常情况
         //if(aggr_op == AggrOp::NO_AGGR_OP){
