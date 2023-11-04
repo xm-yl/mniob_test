@@ -29,11 +29,8 @@ public:
   Field(const Table *table, const FieldMeta *field, const std::string &table_name = std::string(), const std::string& alias = std::string(),
         AggrOp aggr_op=AggrOp::NO_AGGR_OP, bool is_star=false, int star_num=-1) 
   : table_(table), field_(field),aggr_op_(aggr_op),is_star_(is_star),star_num_(star_num), alias_(alias), table_name_(table_name.empty() ? table->table_meta().name() : table_name)
-  { 
-    if(alias.empty())
-      name_with_oper = std::string(field->name());
-    else
-      name_with_oper = std::string(alias);
+  {   
+    name_with_oper = std::string(field->name());
     if(aggr_op != AggrOp::NO_AGGR_OP){
       std::string field_name(field->name());
       const std::string lbrace = "(";
@@ -65,6 +62,8 @@ public:
         } break;
       }
     }
+    if(!alias.empty()) 
+      name_with_oper = std::string(alias);
   }
   Field(const Field &) = default;
 

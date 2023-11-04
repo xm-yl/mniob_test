@@ -859,11 +859,45 @@ aggr_func:
     $$->attribute_name = '*';
     $$->aggr_op = $1;
   }
+  | aggr_op LBRACE '*' RBRACE AS ID{
+    $$ = new RelAttrSqlNode;
+    $$->relation_name = "";
+    $$->attribute_name = '*';
+    $$->alias = $6;
+    $$->aggr_op = $1;
+
+    free($6);
+  }
+  | aggr_op LBRACE '*' RBRACE ID {
+    $$ = new RelAttrSqlNode;
+    $$->relation_name = "";
+    $$->attribute_name = '*';
+    $$->alias = $5;
+    $$->aggr_op = $1;
+
+    free($5);
+  }
   | aggr_op LBRACE ID RBRACE {
     $$ = new RelAttrSqlNode;
     $$->attribute_name = $3;
     $$->aggr_op = $1;
     free($3);    
+  }
+  | aggr_op LBRACE ID RBRACE AS ID{
+    $$ = new RelAttrSqlNode;
+    $$->attribute_name = $3;
+    $$->alias = $6;
+    $$->aggr_op = $1;
+    free($3); 
+    free($6);
+  }
+  | aggr_op LBRACE ID RBRACE ID{
+    $$ = new RelAttrSqlNode;
+    $$->attribute_name = $3;
+    $$->alias = $5;
+    $$->aggr_op = $1;
+    free($3); 
+    free($5);
   }
   | aggr_op LBRACE ID DOT ID RBRACE {
       $$ = new RelAttrSqlNode;
@@ -872,6 +906,26 @@ aggr_func:
       $$->aggr_op = $1;
       free($3);
       free($5);
+  }
+  | aggr_op LBRACE ID DOT ID RBRACE AS ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $3;
+      $$->attribute_name = $5;
+      $$->alias = $8;
+      $$->aggr_op = $1;
+      free($3);
+      free($5);
+      free($8);
+  }
+  | aggr_op LBRACE ID DOT ID RBRACE ID {
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $3;
+      $$->attribute_name = $5;
+      $$->alias = $7;
+      $$->aggr_op = $1;
+      free($3);
+      free($5);
+      free($7);
   }
   ;
 
