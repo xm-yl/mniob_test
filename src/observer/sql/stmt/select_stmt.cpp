@@ -60,16 +60,21 @@ static bool check_type_match(AttrType field_type, AggrOp aggr_op){
     }
   }
 }
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas, const char* table_name_alias, AggrOp aggr_op = AggrOp::NO_AGGR_OP)
+static void wildcard_fields(Table *table, 
+                            std::vector<Field> &field_metas, 
+                            const char* table_name_alias, 
+                            AggrOp aggr_op = AggrOp::NO_AGGR_OP, 
+                            bool *count_star_init = nullptr,
+                            const std::string &count_star_alias = std::string()
+                            )
 {
   ASSERT(aggr_op==AggrOp::NO_AGGR_OP || aggr_op==AggrOp::AGG_COUNT,"Wildcard field can only be aggrgated with func COUNT");
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num();
-  if(aggr_op==AggrOp::AGG_COUNT){
-    //auto star_num = Field::get_next_star_num();
+  if(aggr_op==AggrOp::AGG_COUNT && !*count_star_init){
     int i = table_meta.sys_field_num();
-    field_metas.push_back(Field(table, table_meta.field(i), table_name_alias, std::string(), aggr_op,true));
-    //Field::add_next_star_num();
+    field_metas.push_back(Field(table, table_meta.field(i), table_name_alias, count_star_alias, aggr_op,true));
+    *count_star_init = true;
   }
   else if(aggr_op==AggrOp::NO_AGGR_OP){
     for (int i = table_meta.sys_field_num(); i < field_num; i++) {
@@ -139,12 +144,14 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
     //若表名为空，且查询为*，则全部查                             select * from id1，id2 ...
     if (common::is_blank(relation_attr.relation_name.c_str()) &&
         0 == strcmp(relation_attr.attribute_name.c_str(), "*")) {
+      const std::string count_star_alias = select_sql.attributes.at(i).alias;
+      bool  count_star_init = false;
       for (Table *table : tables) {
         if(aggr_op!=AggrOp::NO_AGGR_OP && aggr_op!= AggrOp::AGG_COUNT){
           LOG_WARN("Aggregation Operation Not Allowd for *");
           return RC::SCHEMA_FIELD_TYPE_MISMATCH;
         }
-        wildcard_fields(table, query_fields, table->table_meta().name(), aggr_op);
+        wildcard_fields(table, query_fields, table->table_meta().name(), aggr_op, &count_star_init, count_star_alias);
       }
     //若表名不空，即table.id 的查询方式                           select *.* from id1,id2 ...
     //表名为*时，field也必须为*，即*.* 查询所有表的所有id          select id1.*, id2.*from id1,id2
