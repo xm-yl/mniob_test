@@ -329,3 +329,16 @@ void TableMeta::desc(std::ostream &os) const
   }
   os << ')' << std::endl;
 }
+
+bool TableMeta::has_flexible_field() const {
+  //TODO
+  //if(has_flexiable_field_ < 0) {
+    //for(size_t i = 0;i < fields_.size(); i++) {
+      //if(fields_[i].type() == AttrType::TEXTS) {
+        //has_flexiable_field_ = 1;
+      //}
+    //}
+    //if(has_flexiable_field_ < 0) has_flexiable_field_ = 0;
+  //}
+  return has_flexiable_field_;
+}

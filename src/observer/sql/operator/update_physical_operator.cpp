@@ -139,6 +139,7 @@ RC UpdatePhysicalOperator::next(Tuple* outer_tuple)
     Record &record = row_tuple->record();
     rc = trx_->update_record(table_, record, update_values_, update_fields_);
     if (rc != RC::SUCCESS) {
+      //trx_->rollback();
       LOG_WARN("failed to update record: %s", strrc(rc));
       return rc;
     }

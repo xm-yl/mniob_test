@@ -62,6 +62,7 @@ public:
   int index_num() const;
 
   int record_size() const;
+  bool has_flexible_field() const;
 
 public:
   int serialize(std::ostream &os) const override;
@@ -75,6 +76,7 @@ protected:
   std::string name_;
   std::vector<FieldMeta> fields_;  // 包含sys_fields
   std::vector<IndexMeta> indexes_;
+  int has_flexiable_field_ = -1;
 
   int record_size_ = 0;
 };

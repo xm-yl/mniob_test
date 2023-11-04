@@ -51,6 +51,10 @@ void VacuousTrxKit::all_trxes(std::vector<Trx *> &trxes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+RC VacuousTrx::rollback_n(int n) {
+  return RC::SUCCESS;
+}
+
 RC VacuousTrx::insert_record(Table *table, Record &record)
 {
   return table->insert_record(record);

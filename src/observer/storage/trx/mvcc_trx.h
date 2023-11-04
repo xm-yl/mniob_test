@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "storage/trx/trx.h"
+#include "storage/index/index.h"
 
 class CLogManager;
 
@@ -48,7 +49,7 @@ public:
 private:
   std::vector<FieldMeta> fields_; // 存储事务数据需要用到的字段元数据，所有表结构都需要带的
 
-  std::atomic<int32_t> current_trx_id_{0};
+  std::atomic<int32_t> current_trx_id_{1};
 
   common::Mutex      lock_;
   std::vector<Trx *> trxes_;
@@ -89,20 +90,24 @@ public:
   RC redo(Db *db, const CLogRecord &log_record) override;
 
   int32_t id() const override { return trx_id_; }
+  RC rollback_n(int n) override;
 
 private:
   RC commit_with_trx_id(int32_t commit_id);
   void trx_fields(Table *table, Field &begin_xid_field, Field &end_xid_field) const;
-
+  void create_index_keys(Index* index, Record &record, char* &l_key, char* &r_key, int& len);
+  RC get_rc(int32_t begin_xid, int32_t end_xid, bool readonly);
+  bool unique_index_dup(Table* table, Record & record);
 private:
   static const int32_t MAX_TRX_ID = std::numeric_limits<int32_t>::max();
 
 private:
-  using OperationSet = std::unordered_set<Operation, OperationHasher, OperationEqualer>;
+  using OperationSet = std::set<Operation>;
   MvccTrxKit & trx_kit_;
   CLogManager *log_manager_ = nullptr;
   int32_t      trx_id_ = -1;
   bool         started_ = false;
   bool         recovering_ = false;
   OperationSet operations_;
+  int operation_order_ = 0;
 };

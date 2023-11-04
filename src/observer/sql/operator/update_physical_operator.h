@@ -39,6 +39,7 @@ private:
   std::vector<Expression *>     update_exprs_;
   std::vector<const FieldMeta*> update_fields_; 
   std::vector<const Value*>     update_values_;
+  int action_num = 0;
   bool sub_query_init = false;
   bool update_values_init = false;
 };

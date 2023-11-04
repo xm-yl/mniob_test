@@ -199,6 +199,7 @@ static const int CLOG_BUFFER_SIZE = 4 * 1024 * 1024;
 
 CLogBuffer::CLogBuffer()
 {
+  total_size_ = 0;
 }
 
 CLogBuffer::~CLogBuffer()

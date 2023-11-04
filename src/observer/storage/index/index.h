@@ -80,6 +80,14 @@ public:
    */
   virtual RC sync() = 0;
 
+  virtual const std::vector<FieldMeta> & field_metas() {
+    return field_metas_;
+  }
+
+  virtual bool is_unique() const {
+    return index_meta_.is_unique();
+  }
+
 protected:
   // RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
   RC init(const IndexMeta &index_meta, const std::vector<FieldMeta> &field_metas);
