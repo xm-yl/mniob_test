@@ -946,7 +946,13 @@ aggr_func_list:
     ;
 
 rel_attr:
-    ID {
+    ID DOT '*'{
+      $$ = new RelAttrSqlNode;
+      $$->relation_name  = $1;
+      $$->attribute_name = "*";
+      free($1);
+    }
+    | ID {
       $$ = new RelAttrSqlNode;
       $$->attribute_name = $1;
       free($1);
