@@ -123,4 +123,5 @@ private:
   DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
   RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
   std::vector<Index *> indexes_;
+  std::string alias_;                            /// 记录表的alias
 };

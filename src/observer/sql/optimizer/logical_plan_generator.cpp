@@ -90,7 +90,7 @@ RC LogicalPlanGenerator::create_plan(
   //table get operator
   unique_ptr<LogicalOperator> table_oper(nullptr);
   int now_join_index = 0;
-  const std::vector<Table *> &tables = select_stmt->tables();
+  const std::vector<Table*> &tables = select_stmt->tables();
   const std::vector<Field> &all_fields = select_stmt->query_fields();
   //遍历要from的表
   for (Table *table : tables) {

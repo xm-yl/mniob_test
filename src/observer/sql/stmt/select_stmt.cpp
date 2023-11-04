@@ -60,7 +60,7 @@ static bool check_type_match(AttrType field_type, AggrOp aggr_op){
     }
   }
 }
-static void wildcard_fields(Table *table, std::vector<Field> &field_metas, AggrOp aggr_op = AggrOp::NO_AGGR_OP)
+static void wildcard_fields(Table *table, std::vector<Field> &field_metas, const char* table_name_alias, AggrOp aggr_op = AggrOp::NO_AGGR_OP)
 {
   ASSERT(aggr_op==AggrOp::NO_AGGR_OP || aggr_op==AggrOp::AGG_COUNT,"Wildcard field can only be aggrgated with func COUNT");
   const TableMeta &table_meta = table->table_meta();
@@ -68,12 +68,12 @@ static void wildcard_fields(Table *table, std::vector<Field> &field_metas, AggrO
   if(aggr_op==AggrOp::AGG_COUNT){
     //auto star_num = Field::get_next_star_num();
     int i = table_meta.sys_field_num();
-    field_metas.push_back(Field(table, table_meta.field(i),aggr_op,true));
+    field_metas.push_back(Field(table, table_meta.field(i), table_name_alias, std::string(), aggr_op,true));
     //Field::add_next_star_num();
   }
   else if(aggr_op==AggrOp::NO_AGGR_OP){
     for (int i = table_meta.sys_field_num(); i < field_num; i++) {
-      field_metas.push_back(Field(table, table_meta.field(i)));
+      field_metas.push_back(Field(table, table_meta.field(i), table_name_alias));
     }
   }
 }
@@ -90,19 +90,42 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
   std::unordered_map<std::string, Table *> table_map;
   for (size_t i = 0; i < select_sql.relations.size(); i++) {
     const char *table_name = select_sql.relations[i].c_str();
+    const std::string table_alias = select_sql.rel_alias[i];
     if (nullptr == table_name) {
       LOG_WARN("invalid argument. relation name is null. index=%d", i);
       return RC::INVALID_ARGUMENT;
     }
-
     Table *table = db->find_table(table_name);
     if (nullptr == table) {
       LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
     tables.push_back(table);
-
     table_map.insert(std::pair<std::string, Table *>(table_name, table));
+
+    if (!table_alias.empty()){
+      LOG_DEBUG("table %s has alias named %s", table_name, table_alias.c_str());
+      
+      //insert table alias into the str->table map.
+      // check if outer has the same alias.
+      if(outer_tables != nullptr){
+        auto iter_outer = outer_tables->find(table_alias);
+        if(iter_outer != outer_tables->end()){
+          // #TODO
+          outer_tables->erase(table_alias);
+        }
+      }
+      
+      //check if the alias conflict.
+      auto iter_inner = table_map.find(table_alias);
+      if(iter_inner != table_map.end()){
+        LOG_WARN("Duplicated table alias used in the same level of the query");
+        return RC::RECORD_DUPLICATE_KEY;
+      }
+      else {
+        table_map.insert(std::pair<std::string, Table *>(table_alias, table));
+      }
+    }
   }
 
   // collect query fields in `select` statement
@@ -121,7 +144,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
           LOG_WARN("Aggregation Operation Not Allowd for *");
           return RC::SCHEMA_FIELD_TYPE_MISMATCH;
         }
-        wildcard_fields(table, query_fields , aggr_op);
+        wildcard_fields(table, query_fields, table->table_meta().name(), aggr_op);
       }
     //若表名不空，即table.id 的查询方式                           select *.* from id1,id2 ...
     //表名为*时，field也必须为*，即*.* 查询所有表的所有id          select id1.*, id2.*from id1,id2
@@ -129,6 +152,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
     } else if (!common::is_blank(relation_attr.relation_name.c_str())) {
       const char *table_name = relation_attr.relation_name.c_str();
       const char *field_name = relation_attr.attribute_name.c_str();
+      const std::string field_alias = relation_attr.alias;
 
       if (0 == strcmp(table_name, "*")) {
         if (0 != strcmp(field_name, "*")) {
@@ -140,7 +164,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
           LOG_WARN("Aggregation Operation Not Allowd for *");
           return RC::SCHEMA_FIELD_TYPE_MISMATCH;
           }
-          wildcard_fields(table, query_fields, aggr_op);
+          wildcard_fields(table, query_fields, table_name, aggr_op);
         }
       } else {
         auto iter = table_map.find(table_name);
@@ -155,7 +179,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
           LOG_WARN("Aggregation Operation Not Allowd for *");
           return RC::SCHEMA_FIELD_TYPE_MISMATCH;
           }
-          wildcard_fields(table, query_fields,aggr_op);
+          wildcard_fields(table, query_fields,table_name, aggr_op);
         } else {
           const FieldMeta *field_meta = table->table_meta().field(field_name);
           if (nullptr == field_meta) {
@@ -163,10 +187,12 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
             return RC::SCHEMA_FIELD_MISSING;
           }
 
-          query_fields.push_back(Field(table, field_meta,aggr_op));
+          query_fields.push_back(Field(table, field_meta, table_name, field_alias, aggr_op));
         }
       }
-    } else {
+    }
+    // 表名为空且属性不是*，此时from中只能有一张表，否则报错。 
+    else {
       if (tables.size() != 1) {
         LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
@@ -174,6 +200,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
 
       Table *table = tables[0];
       const FieldMeta *field_meta = table->table_meta().field(relation_attr.attribute_name.c_str());
+      const std::string alias = relation_attr.alias;
       if (nullptr == field_meta) {
         LOG_WARN("no such field. field=%s.%s.%s", db->name(), table->name(), relation_attr.attribute_name.c_str());
         return RC::SCHEMA_FIELD_MISSING;
@@ -183,7 +210,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
         LOG_WARN("Aggregation Operation Not Allowed from the data type");
         return RC::SCHEMA_FIELD_TYPE_MISMATCH;
       }
-      query_fields.push_back(Field(table, field_meta, aggr_op));
+      query_fields.push_back(Field(table, field_meta, table->table_meta().name(), alias, aggr_op));
     }
   }
 
@@ -233,6 +260,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
 
   std::vector<Field> order_fields;
   std::vector<bool> is_asc;
+  
   // create order statement in `where` statement
   // almost same as select attributes
   for (int i = 0; i < static_cast<int>(select_sql.order_bys.size()); i++) {
@@ -240,7 +268,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
     const RelAttrSqlNode & relation_attr = select_sql.order_bys[i].rel_name;
     const char *table_name = relation_attr.relation_name.c_str();
     const char *field_name = relation_attr.attribute_name.c_str();
-
+    const std::string field_alias = relation_attr.alias;
     //table name is empty
     if (0 == strcmp("", table_name)) {
       if (tables.size() != 1) {
@@ -255,7 +283,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
         return RC::SCHEMA_FIELD_MISSING;
       }
 
-      order_fields.push_back(Field(table, field_meta, NO_AGGR_OP));
+      order_fields.push_back(Field(table, field_meta, table->table_meta().name(), field_alias, NO_AGGR_OP));
 
     } else {
     // table name not empty
@@ -272,7 +300,7 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt, std:
         LOG_WARN("[order by stmt] no such field. in order field=%s.%s.%s", db->name(), table->name(), field_name);
         return RC::SCHEMA_FIELD_MISSING;
       }
-      order_fields.push_back(Field(table, field_meta, NO_AGGR_OP));
+      order_fields.push_back(Field(table, field_meta, table_name, field_alias, NO_AGGR_OP));
     }
 
   }

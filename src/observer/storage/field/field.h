@@ -26,10 +26,14 @@ class Field
 {
 public:
   Field() = default;
-  Field(const Table *table, const FieldMeta *field , AggrOp aggr_op=AggrOp::NO_AGGR_OP,bool is_star=false,int star_num=-1) 
-  : table_(table), field_(field),aggr_op_(aggr_op),is_star_(is_star),star_num_(star_num)
-  {
-    name_with_oper = std::string(field->name());
+  Field(const Table *table, const FieldMeta *field, const std::string &table_name = std::string(), const std::string& alias = std::string(),
+        AggrOp aggr_op=AggrOp::NO_AGGR_OP, bool is_star=false, int star_num=-1) 
+  : table_(table), field_(field),aggr_op_(aggr_op),is_star_(is_star),star_num_(star_num), alias_(alias), table_name_(table_name.empty() ? table->table_meta().name() : table_name)
+  { 
+    if(alias.empty())
+      name_with_oper = std::string(field->name());
+    else
+      name_with_oper = std::string(alias);
     if(aggr_op != AggrOp::NO_AGGR_OP){
       std::string field_name(field->name());
       const std::string lbrace = "(";
@@ -102,6 +106,12 @@ public:
   {
     return field_->name();
   }
+  const char *alias() const{
+    return alias_.c_str();
+  }
+  const char *table_name_alias() const{
+    return table_name_.c_str();
+  }
   void set_table(const Table *table)
   {
     this->table_ = table;
@@ -130,6 +140,8 @@ private:
 private:
   const Table *table_ = nullptr;
   const FieldMeta *field_ = nullptr;
+  std::string alias_ = std::string();
+  std::string table_name_ = std::string();
   AggrOp aggr_op_ = AggrOp::NO_AGGR_OP;
   bool is_star_ = false; // 是否是代表star聚合的Field
   int star_num_ = 0; // 现在没用

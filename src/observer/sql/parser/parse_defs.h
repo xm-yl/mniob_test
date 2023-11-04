@@ -52,6 +52,7 @@ struct RelAttrSqlNode
 {
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
+  std::string alias;            ///< alias                       别名
   AggrOp aggr_op;
   RelAttrSqlNode() {
     aggr_op = AggrOp::NO_AGGR_OP;
@@ -140,6 +141,7 @@ struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
+  std::vector<std::string>        rel_alias;     ///< 查询的表的别名
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<std::vector<ConditionSqlNode>>   on_conditions;
   std::vector<OrderBySqlNode>     order_bys;
