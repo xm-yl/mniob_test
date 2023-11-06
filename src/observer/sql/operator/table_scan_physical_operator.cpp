@@ -55,6 +55,9 @@ RC TableScanPhysicalOperator::next()
 
     if (filter_result) {
       //sql_debug("get a tuple: %s", tuple_.to_string().c_str());
+      if(OB_FAIL(rc = table_->get_record_texts(current_record_, trx_, readonly_))) {
+        return rc;
+      }
       break;
     } else {
       //sql_debug("a tuple is filtered: %s", tuple_.to_string().c_str());

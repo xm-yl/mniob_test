@@ -77,6 +77,7 @@ public:
   void set_date(int s);
   void set_null(bool s);
   void set_length(int len);
+  void set_text(const char* c, int len);
 
   std::string to_string() const;
 

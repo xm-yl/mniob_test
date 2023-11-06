@@ -1,8 +1,8 @@
-/* A Bison parser, made by GNU Bison 3.8.2.  */
+/* A Bison parser, made by GNU Bison 3.7.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2021 Free Software Foundation,
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2020 Free Software Foundation,
    Inc.
 
    This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -79,48 +79,49 @@ extern int yydebug;
     STRING_T = 280,                /* STRING_T  */
     FLOAT_T = 281,                 /* FLOAT_T  */
     DATE_T = 282,                  /* DATE_T  */
-    HELP = 283,                    /* HELP  */
-    EXIT = 284,                    /* EXIT  */
-    DOT = 285,                     /* DOT  */
-    INTO = 286,                    /* INTO  */
-    VALUES = 287,                  /* VALUES  */
-    FROM = 288,                    /* FROM  */
-    INNER = 289,                   /* INNER  */
-    JOIN = 290,                    /* JOIN  */
-    WHERE = 291,                   /* WHERE  */
-    AND = 292,                     /* AND  */
-    SET = 293,                     /* SET  */
-    ON = 294,                      /* ON  */
-    LOAD = 295,                    /* LOAD  */
-    DATA = 296,                    /* DATA  */
-    INFILE = 297,                  /* INFILE  */
-    EXPLAIN = 298,                 /* EXPLAIN  */
-    NOT = 299,                     /* NOT  */
-    IN = 300,                      /* IN  */
-    EXISTS = 301,                  /* EXISTS  */
-    LIKE = 302,                    /* LIKE  */
-    ORDER = 303,                   /* ORDER  */
-    BY = 304,                      /* BY  */
-    ASC = 305,                     /* ASC  */
-    MAX = 306,                     /* MAX  */
-    MIN = 307,                     /* MIN  */
-    COUNT = 308,                   /* COUNT  */
-    AVG = 309,                     /* AVG  */
-    SUM = 310,                     /* SUM  */
-    NULL_T = 311,                  /* NULL_T  */
-    IS = 312,                      /* IS  */
-    EQ = 313,                      /* EQ  */
-    LT = 314,                      /* LT  */
-    GT = 315,                      /* GT  */
-    LE = 316,                      /* LE  */
-    GE = 317,                      /* GE  */
-    NE = 318,                      /* NE  */
-    NUMBER = 319,                  /* NUMBER  */
-    FLOAT = 320,                   /* FLOAT  */
-    DATE_STR = 321,                /* DATE_STR  */
-    ID = 322,                      /* ID  */
-    SSS = 323,                     /* SSS  */
-    UMINUS = 324                   /* UMINUS  */
+    TEXT_T = 283,                  /* TEXT_T  */
+    HELP = 284,                    /* HELP  */
+    EXIT = 285,                    /* EXIT  */
+    DOT = 286,                     /* DOT  */
+    INTO = 287,                    /* INTO  */
+    VALUES = 288,                  /* VALUES  */
+    FROM = 289,                    /* FROM  */
+    INNER = 290,                   /* INNER  */
+    JOIN = 291,                    /* JOIN  */
+    WHERE = 292,                   /* WHERE  */
+    AND = 293,                     /* AND  */
+    SET = 294,                     /* SET  */
+    ON = 295,                      /* ON  */
+    LOAD = 296,                    /* LOAD  */
+    DATA = 297,                    /* DATA  */
+    INFILE = 298,                  /* INFILE  */
+    EXPLAIN = 299,                 /* EXPLAIN  */
+    NOT = 300,                     /* NOT  */
+    IN = 301,                      /* IN  */
+    EXISTS = 302,                  /* EXISTS  */
+    LIKE = 303,                    /* LIKE  */
+    ORDER = 304,                   /* ORDER  */
+    BY = 305,                      /* BY  */
+    ASC = 306,                     /* ASC  */
+    MAX = 307,                     /* MAX  */
+    MIN = 308,                     /* MIN  */
+    COUNT = 309,                   /* COUNT  */
+    AVG = 310,                     /* AVG  */
+    SUM = 311,                     /* SUM  */
+    NULL_T = 312,                  /* NULL_T  */
+    IS = 313,                      /* IS  */
+    EQ = 314,                      /* EQ  */
+    LT = 315,                      /* LT  */
+    GT = 316,                      /* GT  */
+    LE = 317,                      /* LE  */
+    GE = 318,                      /* GE  */
+    NE = 319,                      /* NE  */
+    NUMBER = 320,                  /* NUMBER  */
+    FLOAT = 321,                   /* FLOAT  */
+    DATE_STR = 322,                /* DATE_STR  */
+    ID = 323,                      /* ID  */
+    SSS = 324,                     /* SSS  */
+    UMINUS = 325                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -129,7 +130,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 120 "yacc_sql.y"
+#line 121 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -157,7 +158,7 @@ union YYSTYPE
   float                             floats;
   bool                              bools;
 
-#line 161 "yacc_sql.hpp"
+#line 162 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -181,8 +182,6 @@ struct YYLTYPE
 
 
 
-
 int yyparse (const char * sql_string, ParsedSqlResult * sql_result, void * scanner);
-
 
 #endif /* !YY_YY_YACC_SQL_HPP_INCLUDED  */

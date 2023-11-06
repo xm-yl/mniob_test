@@ -406,7 +406,11 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+      if($$->type == TEXTS) {
+        $$->length = 9 * 2 * 4;
+      } else {
+        $$->length = 4;
+      }
       $$->can_null = $3;
       free($1);
     }

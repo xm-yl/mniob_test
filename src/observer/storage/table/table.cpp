@@ -30,6 +30,20 @@ See the Mulan PSL v2 for more details. */
 #include "storage/index/bplus_tree_index.h"
 #include "storage/trx/trx.h"
 
+void get_text_rids(const char* c, std::vector<RID>& rids) {
+  rids.clear();
+  int offset = 0;
+  for(int i = 0;i < 9; i++) {
+    int32_t page_num;
+    memcpy(&page_num, c + offset, sizeof(page_num));
+    offset += 4;
+    int32_t page_slot;
+    memcpy(&page_slot, c + offset, sizeof(page_num));
+    offset += 4;
+    rids.emplace_back(page_num, page_slot);
+  }
+}
+
 Table::~Table()
 {
   if (record_handler_ != nullptr) {
@@ -156,21 +170,14 @@ RC Table::create(int32_t table_id,
     return rc;
   }
 
-  bool has_texts = false;
+  std::string text_file = table_text_file(base_dir, name);
+  rc = bpm.create_file(text_file.c_str());
 
-  for(int i = 0;i < attribute_count; i++) {
-    if(attributes[i].type == AttrType::TEXTS) {
-      has_texts = true;
-      break;
-    }
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create table %s due to init text file failed.", data_file.c_str());
+    // don't need to remove the data_file
+    return rc;
   }
-
-  if(has_texts) {
-    std::string text_file = table_text_file(base_dir, name);
-    rc = bpm.create_file(text_file.c_str());
-  }
-
-
 
   rc = init_record_handler(base_dir);
   if (rc != RC::SUCCESS) {
@@ -246,11 +253,6 @@ RC Table::open(const char *meta_file, const char *base_dir)
 RC Table::insert_record(Record &record)
 {
   RC rc = RC::SUCCESS;
-  rc = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
-  if (rc != RC::SUCCESS) {
-    LOG_ERROR("Insert record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
-    return rc;
-  }
 
   rc = insert_entry_of_indexes(record.data(), record.rid());
   LOG_DEBUG("insert result: rid: %d,%d, rc=%s",record.rid().page_num,record.rid().slot_num,strrc(rc));
@@ -262,12 +264,46 @@ RC Table::insert_record(Record &record)
     //   if(index->index_meta().is_unique()) continue;
     //   rc = index->delete_entry(record.data(), &record.rid());
     // }
-    rc2 = record_handler_->delete_record(&record.rid());
-    if (rc2 != RC::SUCCESS) {
-      LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
-                name(), rc2, strrc(rc2));
+    //rc2 = record_handler_->delete_record(&record.rid());
+    //if (rc2 != RC::SUCCESS) {
+      //LOG_PANIC("Failed to rollback record data when insert index entries failed. table name=%s, rc=%d:%s",
+                //name(), rc2, strrc(rc2));
+    //}
+  }
+
+  int offset = -1;
+
+  for(int i = 0;i < this->table_meta().field_num(); i++) {
+    if(this->table_meta().field(i)->type() == TEXTS) {
+      offset = this->table_meta().field(i)->offset();
+      break;
     }
   }
+
+  if(offset < 0) return rc;
+
+  for(int i = 0;i < (int)record.texts().size(); i++){
+    if (OB_FAIL(rc = text_handler_->insert_record(record.texts()[i].data(), BP_TEXT_RECORD_SIZE, &(record.texts()[i].rid())))) {
+      return rc;
+    } 
+  }
+
+  for(int j = 0;j < 9; j++) {
+    if(j < (int)record.texts().size()) {
+      memcpy(record.data() + offset + j * 4 * 2, &record.texts()[j].rid().page_num, 4);
+      memcpy(record.data() + offset + j * 4 * 2 + 4, &record.texts()[j].rid().slot_num, 4);
+    } else {
+      memset(record.data() + offset + j * 4 * 2, -1, 4);
+      memset(record.data() + offset + j * 4 * 2 + 4, -1, 4);
+    }
+  }
+
+  rc = record_handler_->insert_record(record.data(), table_meta_.record_size(), &record.rid());
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Insert record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
+    return rc;
+  }
+
   return rc;
 }
 
@@ -294,6 +330,30 @@ RC Table::get_record(const RID &rid, Record &record)
   }
 
   record.set_data_owner(record_data, record_size);
+
+
+  int offset = -1;
+
+  for(int i = 0;i < this->table_meta().field_num(); i++) {
+    if(this->table_meta().field(i)->type() == TEXTS) {
+      offset = this->table_meta().field(i)->offset();
+      break;
+    }
+  }
+  if(offset < 0) return rc;
+
+  std::vector<RID> rids;
+  get_text_rids(record.data() + offset, rids);
+
+  for(int i = 0;i < (int)rids.size(); i++) {
+    text_handler_->visit_record(rids[i], true, [&record](Record &record_src){
+      char *text_data = (char *)malloc(BP_TEXT_RECORD_SIZE);
+      memcpy(text_data, record_src.data(), BP_TEXT_RECORD_SIZE);
+      record.texts().emplace_back();
+      record.texts().back().set_data_owner(text_data, strlen(text_data));
+    });
+  }
+
   return rc;
 }
 
@@ -365,6 +425,28 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
         copy_len = data_len + 1;
       }
     }
+    if (field->type() == TEXTS) {
+      int len = value.length();
+      int num = len / BP_TEXT_RECORD_SIZE;
+      if(len % BP_TEXT_RECORD_SIZE != 0) {
+        num++;
+      }
+
+      int remain = len;
+      for(int i = 0;i < num; i++) {
+        record.texts().emplace_back();
+        char * d = new char[BP_TEXT_RECORD_SIZE];
+        memset(d, 0, BP_TEXT_RECORD_SIZE);
+        int cpsize = std::min(remain, BP_TEXT_RECORD_SIZE);
+        memcpy(d, value.data(), cpsize);
+        remain -= cpsize;
+        record.texts().back().set_data_owner(d, cpsize);
+      }
+
+      //TODO TEXTS CONSTANTS 9*4*2 MAGIIIIIIIIIIIIIIC!
+      memset(record_data + field->offset(), -1, 9 * 4 * 2);
+      continue;
+    }
     memcpy(record_data + field->offset(), value.data(), copy_len);
   }
 
@@ -375,6 +457,7 @@ RC Table::make_record(int value_num, const Value *values, Record &record)
 RC Table::init_record_handler(const char *base_dir)
 {
   std::string data_file = table_data_file(base_dir, table_meta_.name());
+  std::string text_file = table_text_file(base_dir, table_meta_.name());
 
   RC rc = BufferPoolManager::instance().open_file(data_file.c_str(), data_buffer_pool_);
   if (rc != RC::SUCCESS) {
@@ -382,14 +465,29 @@ RC Table::init_record_handler(const char *base_dir)
     return rc;
   }
 
-  record_handler_ = new RecordFileHandler();
-  rc = record_handler_->init(data_buffer_pool_);
+  rc = BufferPoolManager::instance().open_file(text_file.c_str(), text_buffer_pool_);
   if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to open disk buffer pool for file:%s. rc=%d:%s", data_file.c_str(), rc, strrc(rc));
+    return rc;
+  }
+
+  record_handler_ = new RecordFileHandler();
+  text_handler_ = new RecordFileHandler();
+
+  rc = record_handler_->init(data_buffer_pool_);
+
+  RC rc2 = text_handler_->init(text_buffer_pool_);
+
+  if (rc != RC::SUCCESS || rc2 != RC::SUCCESS) {
     LOG_ERROR("Failed to init record handler. rc=%s", strrc(rc));
     data_buffer_pool_->close_file();
+    text_buffer_pool_->close_file();
     data_buffer_pool_ = nullptr;
+    text_buffer_pool_ = nullptr;
     delete record_handler_;
+    delete text_handler_;
     record_handler_ = nullptr;
+    text_handler_ = nullptr;
     return rc;
   }
 
@@ -403,6 +501,84 @@ RC Table::get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly
     LOG_ERROR("failed to open scanner. rc=%s", strrc(rc));
   }
   return rc;
+}
+
+RC Table::get_text_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly)
+{
+  RC rc = scanner.open_scan(this, *text_buffer_pool_, trx, readonly, nullptr);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("failed to open scanner. rc=%s", strrc(rc));
+  }
+  return rc;
+}
+
+
+RC Table::get_record_texts(Record& record, Trx* trx, bool readonly) {
+  int offset = -1;
+  RC rc = RC::SUCCESS;
+
+  for(int i = 0;i < this->table_meta().field_num(); i++) {
+    if(this->table_meta().field(i)->type() == TEXTS) {
+      offset = this->table_meta().field(i)->offset();
+      break;
+    }
+  }
+
+  if(offset < 0) return rc;
+
+  RecordFileScanner* scanner = new RecordFileScanner();
+  if (OB_FAIL(rc = this->get_text_scanner(*scanner, trx, readonly))) {
+    return rc;
+  }
+
+  std::vector<RID> rids;
+  get_text_rids(record.data() + offset, rids);
+  record.texts().clear();
+  int n = 0;
+  for(int i = 0;i < (int)rids.size(); i++) {
+    if(rids[i].page_num < 0 || rids[i].slot_num < 0) {
+      break;
+    }
+
+    n = i + 1;
+  }
+  record.texts().resize(n);
+
+  for(int i = 0;i < n; i++) {
+      Record r;
+      bool is_find = false;
+      while (scanner->has_next()) {
+        rc = scanner->next(r);
+        if (rc != RC::SUCCESS) {
+          scanner->close_scan();
+          return rc;
+        }
+
+        for(int j = 0;j < n; j++) {
+          //TODO right value NEEDED!!!!
+          if (rids[j] == r.rid()) {
+            record.texts()[j] = r;
+            is_find = true;
+          }
+          if(is_find) break;
+        }
+
+        if(is_find) break;
+      }
+      
+      if (!is_find) {
+        //BUG!
+        LOG_WARN("not find all record of the text");
+        scanner->close_scan();
+        return RC::INTERNAL;
+      }
+  }
+
+  scanner->close_scan();
+  if(scanner != nullptr) {
+    delete scanner;
+  }
+  return RC::SUCCESS;
 }
 
 RC Table::create_index(Trx *trx, const std::vector<const FieldMeta*>& field_metas, const char *index_name, bool is_unique)
@@ -541,22 +717,12 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
     int update_location = 0;
     int update_field_length = update_field_meta->len();
     
-    //Get the offset of updating values.(update_location)
-    // for(int j = 0; j < field_num;j++){
-    //   const FieldMeta *field_meta = table_meta_.field(j + sys_field_num);
-    //   AttrType field_type = field_meta->type();
-    //   const char * field_name = field_meta->name();
-    
-    //   //check the validation of the value type and name.
-    //   if(strcmp(field_name,update_field_meta->name())==0){
-    //     update_field_length = field_meta->len();
-    //     break;
-    //   }
-    //   //update_location += field_meta->len();
-
-    // }
     update_location = update_field_meta->offset();
-    // LOG_DEBUG("[Table:update_record] before-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d, value:%d", *(r), *(r+4), *(r+8), *(r+12), *(value->data()));
+
+    if(update_fields.at(i)->type() == TEXTS) {
+      continue;
+    }
+
     // update by memcpy
     char *tmp = new char[update_field_length];
     memset(tmp, 0, sizeof(char) * update_field_length);
@@ -586,7 +752,52 @@ RC Table::update_record(Record &record, std::vector<const Value*> update_values,
     return rc;
   }
   // LOG_DEBUG("[Table:update_record] after-> r[0]:%d, r[1]:%d, r[2]:%d, r[3]:%d", *(r), *(r+4), *(r+8), *(r+12));
+  for(int i = 0;i < (int)update_fields.size(); i++) {
+    if(update_fields.at(i)->type() != TEXTS) continue;
 
+    std::vector<RID> rids;
+    get_text_rids( record.data() + update_fields.at(i)->offset(), rids);
+    
+    for(int i = 0;i < (int)rids.size(); i++) {
+      if(rids[i].page_num < 0) break;
+      rc = text_handler_->delete_record(&rids[i]);
+      if(OB_FAIL(rc)) {
+        LOG_WARN("delete text record failed");
+        return rc;
+      }
+    }
+    record.texts().clear();
+
+
+    int len = update_values.at(i)->get_string().size();
+    int num = len / BP_TEXT_RECORD_SIZE;
+    if(len % BP_TEXT_RECORD_SIZE != 0) {
+      num++;
+    }
+
+    int remain = len;
+    for(int j = 0;j < num; j++) {
+      record.texts().emplace_back();
+      char * d = new char[BP_TEXT_RECORD_SIZE];
+      int cpsize = std::min(remain, BP_TEXT_RECORD_SIZE);
+
+      memcpy(d, update_values.at(i)->data() + j * BP_TEXT_RECORD_SIZE, cpsize);
+      remain -= BP_TEXT_RECORD_SIZE;
+      record.texts().back().set_data_owner(d, cpsize);
+
+      text_handler_->insert_record(record.data(), BP_TEXT_RECORD_SIZE, &record.texts().back().rid());
+    }
+
+    for(int j = 0;j < 9; j++) {
+      if(j < (int)rids.size()) {
+        memcpy(r + update_fields.at(i)->offset() + j * 4 * 2, &record.texts()[j].rid().page_num, 4);
+        memcpy(r + update_fields.at(i)->offset() + j * 4 * 2 + 4, &record.texts()[j].rid().slot_num, 4);
+      } else {
+        memset(r + update_fields.at(i)->offset() + j * 4 * 2, -1, 4);
+        memset(r + update_fields.at(i)->offset() + j * 4 * 2 + 4, -1, 4);
+      }
+    }
+  }
   rc = record_handler_->update_record(&record.rid(), r);
   delete []r;
   return rc;
@@ -602,6 +813,14 @@ RC Table::delete_record(const Record &record)
            "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
            name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
+  
+  for(int i = 0;i < (int)record.texts().size(); i++) {
+    rc = text_handler_->delete_record(&record.texts()[i].rid());
+    ASSERT(RC::SUCCESS == rc, 
+           "failed to delete text from index. table name=%s, index name=%s, rid=%s, rc=%s",
+           name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+  }
+
   rc = record_handler_->delete_record(&record.rid());
   return rc;
 }

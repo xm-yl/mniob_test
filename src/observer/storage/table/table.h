@@ -92,6 +92,8 @@ public:
   RC create_index(Trx *trx, const std::vector<const FieldMeta *>& field_meta, const char *index_name, bool is_unique);
 
   RC get_record_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
+  RC get_text_scanner(RecordFileScanner &scanner, Trx *trx, bool readonly);
+  RC get_record_texts(Record& record, Trx* trx, bool readonly);
 
   RecordFileHandler *record_handler() const
   {
@@ -126,6 +128,6 @@ private:
   DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
   RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
   DiskBufferPool *text_buffer_pool_ = nullptr;
-  RecordFileHandler *text_handler = nullptr;
+  RecordFileHandler *text_handler_ = nullptr;
   std::vector<Index *> indexes_;
 };

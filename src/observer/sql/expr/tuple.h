@@ -211,6 +211,17 @@ public:
 
     FieldExpr *field_expr = speces_[index];
     const FieldMeta *field_meta = field_expr->field().meta();
+
+    if(field_meta->type() == TEXTS) {
+      cell.set_type(TEXTS);
+      std::string t;
+      for(int i = 0;i < (int)record_->texts().size(); i++) {
+        t += record_->texts()[i].data();
+      }
+      cell.set_text(t.c_str(), t.length());
+      return RC::SUCCESS;
+    }
+
     cell.set_type(field_meta->type());
     cell.set_data(this->record_->data() + field_meta->offset(), field_meta->len());
     return RC::SUCCESS;

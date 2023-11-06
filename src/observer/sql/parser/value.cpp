@@ -22,7 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "booleans"};
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "texts","booleans"};
 
 bool check_date(int y, int m, int d)
 {
@@ -40,7 +40,7 @@ bool check_date(int y, int m, int d)
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= UNDEFINED && type <= DATES) {
+  if (type >= UNDEFINED && type <= BOOLEANS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -107,7 +107,7 @@ void Value::set_data(char *data, int length)
 {
   if(null_helper(data, length)) return;
   switch (attr_type_) {
-    case CHARS: {
+    case CHARS: case TEXTS: {
       set_string(data, length);
     } break;
     case INTS: {
@@ -209,6 +209,12 @@ void Value::set_date(const char* s) {
   this->length_ = 4; // ADD for length
 }
 
+void Value::set_text(const char* s, int len) {
+  if(null_helper(s, strlen(s))) return;
+  this->attr_type_ = TEXTS;
+  this->str_value_ = s;
+}
+
 void Value::set_date(int s) {
   if(null_helper(static_cast<const char*>(static_cast<const void*>(&s)), sizeof(s))) return;
   this->attr_type_ = DATES;
@@ -237,7 +243,11 @@ bool Value::can_interpret(AttrType a) const {
   if(this->attr_type() == AttrType::CHARS){
     if(a == AttrType::INTS) return true;
     if(a == AttrType::FLOATS) return true;
+    if(a == AttrType::TEXTS) return true;
     else return false;
+  }
+  if(this->attr_type() == AttrType::TEXTS) {
+    if(a == AttrType::CHARS) return true;
   }
   return false;
 }
@@ -310,9 +320,18 @@ bool Value::can_interpret_and_set(AttrType a, int len){
       this->set_float(tmp);
       return true;
     }
+    //CHARS -> TEXTS
+    else if(a == AttrType::TEXTS) {
+      this->set_type(a);
+      if(this->length() == 0) {
+        this->set_length(str_value_.length());
+      }
+      return true;
+    }
     else return false;
   }
   else return false;
+  return false;
 }
 bool Value::string2float(const std::string& b, float& result){
   std::string a;
@@ -404,7 +423,7 @@ const char *Value::data() const
   }
   
   switch (attr_type_) {
-    case CHARS: {
+    case CHARS: case TEXTS: {
       return str_value_.c_str();
     } break;
     default: {
@@ -435,7 +454,7 @@ std::string Value::to_string() const
     case BOOLEANS: {
       os << num_value_.bool_value_;
     } break;
-    case CHARS: {
+    case CHARS: case TEXTS: {
       os << str_value_;
     } break;
     default: {

@@ -106,7 +106,7 @@ RC insert_record_from_file(Table *table,
           record_values[i].set_float(float_value);
         }
       } break;
-      case CHARS: {
+      case CHARS: case TEXTS: {
         record_values[i].set_string(file_value.c_str());
       } break;
       default: {
