@@ -1,4 +1,4 @@
-/* A Bison parser, made by GNU Bison 3.7.  */
+/* A Bison parser, made by GNU Bison 3.7.4.  */
 
 /* Bison interface for Yacc-like parsers in C
 
@@ -77,33 +77,41 @@ extern int yydebug;
     INT_T = 278,                   /* INT_T  */
     STRING_T = 279,                /* STRING_T  */
     FLOAT_T = 280,                 /* FLOAT_T  */
-    HELP = 281,                    /* HELP  */
-    EXIT = 282,                    /* EXIT  */
-    DOT = 283,                     /* DOT  */
-    INTO = 284,                    /* INTO  */
-    VALUES = 285,                  /* VALUES  */
-    FROM = 286,                    /* FROM  */
-    WHERE = 287,                   /* WHERE  */
-    AND = 288,                     /* AND  */
-    SET = 289,                     /* SET  */
-    ON = 290,                      /* ON  */
-    LOAD = 291,                    /* LOAD  */
-    DATA = 292,                    /* DATA  */
-    INFILE = 293,                  /* INFILE  */
-    EXPLAIN = 294,                 /* EXPLAIN  */
-    EQ = 295,                      /* EQ  */
-    LT = 296,                      /* LT  */
-    GT = 297,                      /* GT  */
-    LE = 298,                      /* LE  */
-    GE = 299,                      /* GE  */
-    NE = 300,                      /* NE  */
-    NUMBER = 301,                  /* NUMBER  */
-    FLOAT = 302,                   /* FLOAT  */
-    ID = 303,                      /* ID  */
-    PATH = 304,                    /* PATH  */
-    SSS = 305,                     /* SSS  */
-    STRING_V = 306,                /* STRING_V  */
-    UMINUS = 307                   /* UMINUS  */
+    DATE_T = 281,                  /* DATE_T  */
+    TEXT_T = 282,                  /* TEXT_T  */
+    HELP = 283,                    /* HELP  */
+    EXIT = 284,                    /* EXIT  */
+    DOT = 285,                     /* DOT  */
+    INTO = 286,                    /* INTO  */
+    VALUES = 287,                  /* VALUES  */
+    FROM = 288,                    /* FROM  */
+    WHERE = 289,                   /* WHERE  */
+    AND = 290,                     /* AND  */
+    SET = 291,                     /* SET  */
+    ON = 292,                      /* ON  */
+    LOAD = 293,                    /* LOAD  */
+    DATA = 294,                    /* DATA  */
+    INFILE = 295,                  /* INFILE  */
+    EXPLAIN = 296,                 /* EXPLAIN  */
+    IS = 297,                      /* IS  */
+    NULL_T = 298,                  /* NULL_T  */
+    INNER = 299,                   /* INNER  */
+    JOIN = 300,                    /* JOIN  */
+    EQ = 301,                      /* EQ  */
+    LT = 302,                      /* LT  */
+    GT = 303,                      /* GT  */
+    LE = 304,                      /* LE  */
+    GE = 305,                      /* GE  */
+    NE = 306,                      /* NE  */
+    NOT = 307,                     /* NOT  */
+    LIKE = 308,                    /* LIKE  */
+    UNIQUE = 309,                  /* UNIQUE  */
+    NUMBER = 310,                  /* NUMBER  */
+    FLOAT = 311,                   /* FLOAT  */
+    ID = 312,                      /* ID  */
+    SSS = 313,                     /* SSS  */
+    DATE_STR = 314,                /* DATE_STR  */
+    UMINUS = 315                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -112,7 +120,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 99 "yacc_sql.y"
+#line 114 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -122,16 +130,22 @@ union YYSTYPE
   std::vector<AttrInfoSqlNode> *    attr_infos;
   AttrInfoSqlNode *                 attr_info;
   Expression *                      expression;
+  UpdateKV *                        update_kv;
+  std::vector<UpdateKV> *           update_kv_list;
   std::vector<Expression *> *       expression_list;
   std::vector<Value> *              value_list;
+  std::vector<std::string> *        relation_list;
+  std::vector<std::vector<Value>> * insert_value_list;
   std::vector<ConditionSqlNode> *   condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
-  std::vector<std::string> *        relation_list;
+  InnerJoinSqlNode *                inner_joins;
+  std::vector<InnerJoinSqlNode> *   inner_joins_list;
   char *                            string;
   int                               number;
   float                             floats;
+  bool                              boolean;
 
-#line 135 "yacc_sql.hpp"
+#line 149 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

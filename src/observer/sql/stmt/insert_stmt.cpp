@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-InsertStmt::InsertStmt(Table *table, const Value *values, int value_amount)
+InsertStmt::InsertStmt(Table *table, std::vector<const Value *> values, std::vector<int> value_amount)
     : table_(table), values_(values), value_amount_(value_amount)
 {}
 
@@ -38,29 +38,59 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
   }
 
   // check the fields number
-  const Value *values = inserts.values.data();
-  const int value_num = static_cast<int>(inserts.values.size());
+  std::vector<const Value*> valuess;
+  std::vector<int> value_nums;
   const TableMeta &table_meta = table->table_meta();
   const int field_num = table_meta.field_num() - table_meta.sys_field_num();
-  if (field_num != value_num) {
-    LOG_WARN("schema mismatch. value num=%d, field num in schema=%d", value_num, field_num);
-    return RC::SCHEMA_FIELD_MISSING;
-  }
-
-  // check fields type
   const int sys_field_num = table_meta.sys_field_num();
-  for (int i = 0; i < value_num; i++) {
-    const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
-    const AttrType field_type = field_meta->type();
-    const AttrType value_type = values[i].attr_type();
-    if (field_type != value_type) {  // TODO try to convert the value type to field type
-      LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
-          table_name, field_meta->name(), field_type, value_type);
-      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  for (auto& vs : inserts.values) {
+    const Value *values = vs.data();
+    const int value_num = static_cast<int>(vs.size());
+    if (field_num != value_num) {
+      LOG_WARN("schema mismatch. value num=%d, field num in schema=%d", value_num, field_num);
+      return RC::SCHEMA_FIELD_MISSING;
     }
+
+    // check fields type
+    for (int i = 0; i < value_num; i++) {
+      const FieldMeta *field_meta = table_meta.field(i + sys_field_num);
+      const AttrType field_type = field_meta->type();
+      const AttrType value_type = values[i].attr_type();
+      if (value_type == NULLS && field_meta->nullable()) {
+        continue;
+      }
+      if (field_type != value_type) {  // TODO try to convert the value type to field type
+        if (TEXTS == field_type && CHARS == value_type) {
+          if (MAX_TEXT_LENGTH < values[i].length()) {
+            LOG_WARN("Text length:%d, over max_length 65535", values[i].length());
+            return RC::INVALID_ARGUMENT;
+          }
+        } else {
+          LOG_WARN("field type mismatch. table=%s, field=%s, field type=%d, value_type=%d",
+            table_name, field_meta->name(), field_type, value_type);
+          return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+        }
+      }
+      if(field_type == CHARS && values[i].length() > field_meta->len()){
+          return RC::INVALID_ARGUMENT;
+      }
+      if(field_type == CHARS) {
+        if (values[i].length() > field_meta->len()) {
+          return RC::INVALID_ARGUMENT;
+        }
+        // 将不确定长度的 char 改为固定长度的 char
+        char *char_value = (char*)malloc(field_meta->len());
+        memset(char_value, 0, field_meta->len());
+        memcpy(char_value, values[i].data(), values[i].length());
+        const_cast<Value*>(values)[i].set_data(char_value, field_meta->len());
+        free(char_value);
+      }
+    }
+    valuess.emplace_back(values);
+    value_nums.emplace_back(value_num);
   }
 
   // everything alright
-  stmt = new InsertStmt(table, values, value_num);
+  stmt = new InsertStmt(table, valuess, value_nums);
   return RC::SUCCESS;
 }
